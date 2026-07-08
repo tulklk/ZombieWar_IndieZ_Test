@@ -9,6 +9,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("References")]
     [SerializeField] private Joystick joystick;
+    [SerializeField] private PlayerAnimationController animationController;
 
     private CharacterController characterController;
     private Vector3 verticalVelocity;
@@ -18,6 +19,11 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
+
+        if (animationController == null)
+        {
+            animationController = GetComponent<PlayerAnimationController>();
+        }
     }
 
     private void Update()
@@ -44,6 +50,8 @@ public class PlayerMovement : MonoBehaviour
                 rotationSpeed * Time.deltaTime
             );
         }
+
+        animationController?.SetMoveSpeed(moveDirection.magnitude);
 
         if (characterController.isGrounded && verticalVelocity.y < 0)
         {

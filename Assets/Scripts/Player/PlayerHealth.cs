@@ -16,14 +16,40 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private Color hitColor = Color.red;
     [SerializeField] private float flashDuration = 0.12f;
 
+    [Header("Death")]
+    [SerializeField] private PlayerAnimationController animationController;
+    [SerializeField] private PlayerMovement playerMovement;
+    [SerializeField] private WeaponController weaponController;
+
     private Color[] originalColors;
     private bool isDead;
 
     private void Awake()
     {
         currentHealth = maxHealth;
+
+        if (playerRenderers == null || playerRenderers.Length == 0 || System.Array.TrueForAll(playerRenderers, r => r == null))
+        {
+            playerRenderers = GetComponentsInChildren<Renderer>(true);
+        }
+
         CacheOriginalColors();
         UpdateHealthUI();
+
+        if (animationController == null)
+        {
+            animationController = GetComponent<PlayerAnimationController>();
+        }
+
+        if (playerMovement == null)
+        {
+            playerMovement = GetComponent<PlayerMovement>();
+        }
+
+        if (weaponController == null)
+        {
+            weaponController = GetComponent<WeaponController>();
+        }
     }
 
     private void Update()
@@ -91,5 +117,18 @@ public class PlayerHealth : MonoBehaviour
     {
         isDead = true;
         Debug.Log("Player died");
+
+        animationController?.PlayDeath();
+
+        if (playerMovement != null)
+        {
+            playerMovement.enabled = false;
+        }
+
+        if (weaponController != null)
+        {
+            weaponController.HideWeaponModels();
+            weaponController.enabled = false;
+        }
     }
 }

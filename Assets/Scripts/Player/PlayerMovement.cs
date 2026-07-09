@@ -10,6 +10,7 @@ public class PlayerMovement : MonoBehaviour
     [Header("References")]
     [SerializeField] private Joystick joystick;
     [SerializeField] private PlayerAnimationController animationController;
+    [SerializeField] private WeaponController weaponController;
 
     private CharacterController characterController;
     private Vector3 verticalVelocity;
@@ -23,6 +24,11 @@ public class PlayerMovement : MonoBehaviour
         if (animationController == null)
         {
             animationController = GetComponent<PlayerAnimationController>();
+        }
+
+        if (weaponController == null)
+        {
+            weaponController = GetComponent<WeaponController>();
         }
     }
 
@@ -49,9 +55,11 @@ public class PlayerMovement : MonoBehaviour
                 targetRotation,
                 rotationSpeed * Time.deltaTime
             );
+
+            weaponController?.ResetToIdlePose();
         }
 
-        animationController?.SetMoveSpeed(moveDirection.magnitude);
+        animationController?.SetMoveSpeed(moveDirection.magnitude, moveDirection.magnitude * moveSpeed);
 
         if (characterController.isGrounded && verticalVelocity.y < 0)
         {

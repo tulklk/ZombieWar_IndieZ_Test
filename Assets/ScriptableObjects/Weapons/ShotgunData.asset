@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b87f0e90ad202c346b68419633ef1532, type: 3}
+  m_Name: ShotgunData
+  m_EditorClassIdentifier: 
+  weaponName: Shotgun
+  damage: 12
+  fireRate: 0.7
+  range: 18
+  bulletPrefab: {fileID: 8297191405790434548, guid: 511450690c896a94587929e46a3cc2ed, type: 3}
+  bulletSpeed: 25
+  bulletLifeTime: 3
+  isShotgun: 1
+  pelletCount: 7
+  spreadAngle: 10
+  recoilDistance: 0.12
+  recoilReturnSpeed: 12
+  muzzleFlashPrefab: {fileID: 19800006, guid: c888f0c922d622147bbdbe2ca794142b, type: 3}
+  muzzleFlashLocalPosition: {x: 0.7726217, y: 0.1875721, z: -0.0513992}
+  muzzleFlashLocalEulerAngles: {x: 68.769, y: 73.223, z: 61.273}
+  muzzleFlashScale: {x: 1, y: 1, z: 1}
+  hitEffectPrefab: {fileID: 0}
+  weaponModelPrefab: {fileID: 919132149155446097, guid: 8b36fb41929fc22429f0083d817b8040, type: 3}
+  modelLocalScale: {x: 0.1, y: 0.1, z: 0.1}
+  handLocalPosition: {x: 0.269479, y: 0.01818889, z: -0.0008626}
+  handLocalEulerAngles: {x: -20.784, y: 103.411, z: -280.641}
+  backLocalPosition: {x: 0, y: 0.15, z: -0.15}
+  backLocalEulerAngles: {x: 0, y: 90, z: 0}

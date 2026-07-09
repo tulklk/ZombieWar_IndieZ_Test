@@ -3,21 +3,35 @@ using UnityEngine.EventSystems;
 
 public class FireButtonTest : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 {
-    [SerializeField] private PlayerAnimationController animationController;
+    [SerializeField] private WeaponController weaponController;
+
+    private bool isHolding;
+
+    private void Update()
+    {
+        if (isHolding && weaponController != null)
+        {
+            weaponController.TryShoot();
+        }
+    }
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (animationController != null)
+        isHolding = true;
+
+        if (weaponController != null)
         {
-            animationController.SetShooting(true);
+            weaponController.StartShooting();
         }
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        if (animationController != null)
+        isHolding = false;
+
+        if (weaponController != null)
         {
-            animationController.SetShooting(false);
+            weaponController.StopShooting();
         }
     }
 }

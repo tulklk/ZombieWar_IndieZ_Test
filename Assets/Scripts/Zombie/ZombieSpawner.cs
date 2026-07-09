@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class ZombieSpawner : MonoBehaviour
 {
-    [Header("Zombie Prefab")]
-    [SerializeField] private GameObject zombiePrefab;
+    [Header("Zombie Prefabs")]
+    [SerializeField] private GameObject[] zombiePrefabs;
 
     [Header("Spawn Points")]
     [SerializeField] private Transform[] spawnPoints;
@@ -43,7 +43,7 @@ public class ZombieSpawner : MonoBehaviour
 
     private void SpawnZombie()
     {
-        if (zombiePrefab == null || spawnPoints == null || spawnPoints.Length == 0)
+        if (zombiePrefabs == null || zombiePrefabs.Length == 0 || spawnPoints == null || spawnPoints.Length == 0)
         {
             return;
         }
@@ -55,6 +55,7 @@ public class ZombieSpawner : MonoBehaviour
             return;
         }
 
+        GameObject zombiePrefab = zombiePrefabs[Random.Range(0, zombiePrefabs.Length)];
         Transform spawnPoint = spawnPoints[Random.Range(0, spawnPoints.Length)];
 
         GameObject zombie = Instantiate(

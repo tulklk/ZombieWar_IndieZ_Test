@@ -4,7 +4,7 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshAgent))]
 public class ZombieAI : MonoBehaviour
 {
-    private enum ZombieState
+    protected enum ZombieState
     {
         Idle,
         Patrol,
@@ -14,45 +14,45 @@ public class ZombieAI : MonoBehaviour
     }
 
     [Header("Target")]
-    [SerializeField] private Transform target;
+    [SerializeField] protected Transform target;
 
     [Header("Detection")]
-    [SerializeField] private float detectionRange = 8f;
-    [SerializeField] private float loseTargetRange = 12f;
+    [SerializeField] protected float detectionRange = 8f;
+    [SerializeField] protected float loseTargetRange = 12f;
 
     [Header("Patrol")]
-    [SerializeField] private float patrolRadius = 6f;
-    [SerializeField] private float patrolWalkSpeed = 1.2f;
-    [SerializeField] private float idleTimeMin = 1.2f;
-    [SerializeField] private float idleTimeMax = 2.5f;
+    [SerializeField] protected float patrolRadius = 6f;
+    [SerializeField] protected float patrolWalkSpeed = 1.2f;
+    [SerializeField] protected float idleTimeMin = 1.2f;
+    [SerializeField] protected float idleTimeMax = 2.5f;
 
     [Header("Chase")]
-    [SerializeField] private float chaseWalkSpeed = 1.6f;
-    [SerializeField] private float runSpeed = 3.4f;
-    [SerializeField] private float runRampUpTime = 2.5f;
+    [SerializeField] protected float chaseWalkSpeed = 1.6f;
+    [SerializeField] protected float runSpeed = 3.4f;
+    [SerializeField] protected float runRampUpTime = 2.5f;
 
     [Header("Attack")]
-    [SerializeField] private float attackRange = 1.6f;
-    [SerializeField] private float attackCooldown = 1.2f;
-    [SerializeField] private int damage = 10;
+    [SerializeField] protected float attackRange = 1.6f;
+    [SerializeField] protected float attackCooldown = 1.2f;
+    [SerializeField] protected int damage = 10;
 
     [Header("Animation")]
-    [SerializeField] private Animator animator;
+    [SerializeField] protected Animator animator;
 
-    private NavMeshAgent agent;
-    private PlayerHealth playerHealth;
+    protected NavMeshAgent agent;
+    protected PlayerHealth playerHealth;
+    protected ZombieState currentState;
+    protected Vector3 spawnPosition;
 
-    private ZombieState currentState;
-    private Vector3 spawnPosition;
     private float idleTimer;
     private float currentIdleDuration;
     private float chaseTimer;
     private float lastAttackTime;
 
     private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
-    private static readonly int AttackHash = Animator.StringToHash("Attack");
+    protected static readonly int AttackHash = Animator.StringToHash("Attack");
 
-    private void Awake()
+    protected virtual void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
 
@@ -64,7 +64,7 @@ public class ZombieAI : MonoBehaviour
         spawnPosition = transform.position;
     }
 
-    private void Start()
+    protected virtual void Start()
     {
         if (target == null)
         {
@@ -84,7 +84,7 @@ public class ZombieAI : MonoBehaviour
         EnterIdleState();
     }
 
-    private void Update()
+    protected virtual void Update()
     {
         if (currentState == ZombieState.Dead)
         {
@@ -131,7 +131,7 @@ public class ZombieAI : MonoBehaviour
         UpdateMoveAnimation();
     }
 
-    private float GetDistanceToPlayer()
+    protected float GetDistanceToPlayer()
     {
         if (target == null)
         {
@@ -141,7 +141,7 @@ public class ZombieAI : MonoBehaviour
         return Vector3.Distance(transform.position, target.position);
     }
 
-    private void EnterIdleState()
+    protected virtual void EnterIdleState()
     {
         if (currentState == ZombieState.Dead)
         {
@@ -156,7 +156,7 @@ public class ZombieAI : MonoBehaviour
         currentIdleDuration = Random.Range(idleTimeMin, idleTimeMax);
     }
 
-    private void UpdateIdleState()
+    protected virtual void UpdateIdleState()
     {
         idleTimer += Time.deltaTime;
 
@@ -166,7 +166,7 @@ public class ZombieAI : MonoBehaviour
         }
     }
 
-    private void EnterPatrolState()
+    protected virtual void EnterPatrolState()
     {
         if (currentState == ZombieState.Dead)
         {
@@ -181,7 +181,7 @@ public class ZombieAI : MonoBehaviour
         agent.SetDestination(randomPoint);
     }
 
-    private void UpdatePatrolState()
+    protected virtual void UpdatePatrolState()
     {
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.2f)
         {
@@ -207,7 +207,7 @@ public class ZombieAI : MonoBehaviour
         return spawnPosition;
     }
 
-    private void EnterChaseState()
+    protected virtual void EnterChaseState()
     {
         if (currentState == ZombieState.Dead)
         {
@@ -223,7 +223,7 @@ public class ZombieAI : MonoBehaviour
         agent.isStopped = false;
     }
 
-    private void UpdateChaseState()
+    protected virtual void UpdateChaseState()
     {
         if (target == null)
         {
@@ -233,13 +233,17 @@ public class ZombieAI : MonoBehaviour
 
         chaseTimer += Time.deltaTime;
 
-        float speedLerp = Mathf.Clamp01(chaseTimer / runRampUpTime);
-        agent.speed = Mathf.Lerp(chaseWalkSpeed, runSpeed, speedLerp);
-
+        agent.speed = CalculateChaseSpeed(chaseTimer);
         agent.SetDestination(target.position);
     }
 
-    private void EnterAttackState()
+    protected virtual float CalculateChaseSpeed(float elapsedChaseTime)
+    {
+        float speedLerp = Mathf.Clamp01(elapsedChaseTime / runRampUpTime);
+        return Mathf.Lerp(chaseWalkSpeed, runSpeed, speedLerp);
+    }
+
+    protected virtual void EnterAttackState()
     {
         if (currentState == ZombieState.Dead)
         {
@@ -251,7 +255,7 @@ public class ZombieAI : MonoBehaviour
         agent.speed = 0f;
     }
 
-    private void UpdateAttackState()
+    protected virtual void UpdateAttackState()
     {
         if (target == null)
         {
@@ -272,22 +276,26 @@ public class ZombieAI : MonoBehaviour
         if (Time.time >= lastAttackTime + attackCooldown)
         {
             lastAttackTime = Time.time;
-
-            if (animator != null)
-            {
-                animator.SetTrigger(AttackHash);
-            }
-
-            if (playerHealth != null)
-            {
-                playerHealth.TakeDamage(damage);
-            }
-
-            Debug.Log("Zombie attacked Player");
+            PerformAttack();
         }
     }
 
-    private void LookAtTarget()
+    protected virtual void PerformAttack()
+    {
+        if (animator != null)
+        {
+            animator.SetTrigger(AttackHash);
+        }
+
+        if (playerHealth != null)
+        {
+            playerHealth.TakeDamage(damage);
+        }
+
+        Debug.Log(GetType().Name + " attacked Player");
+    }
+
+    protected void LookAtTarget()
     {
         Vector3 direction = target.position - transform.position;
         direction.y = 0f;
@@ -306,7 +314,7 @@ public class ZombieAI : MonoBehaviour
         );
     }
 
-    private void UpdateMoveAnimation()
+    protected virtual void UpdateMoveAnimation()
     {
         if (animator == null)
         {
@@ -325,7 +333,7 @@ public class ZombieAI : MonoBehaviour
         animator.SetFloat(MoveSpeedHash, normalizedSpeed);
     }
 
-    public void SetDead()
+    public virtual void SetDead()
     {
         currentState = ZombieState.Dead;
 

@@ -30,8 +30,14 @@ MonoBehaviour:
   muzzleFlashScale: {x: 1, y: 1, z: 1}
   hitEffectPrefab: {fileID: 0}
   weaponModelPrefab: {fileID: 919132149155446097, guid: 8b36fb41929fc22429f0083d817b8040, type: 3}
-  modelLocalScale: {x: 0.1, y: 0.1, z: 0.1}
-  handLocalPosition: {x: 0.269479, y: 0.01818889, z: -0.0008626}
-  handLocalEulerAngles: {x: -20.784, y: 103.411, z: -280.641}
+  modelLocalScale: {x: 0.2, y: 0.2, z: 0.2}
+  handLocalPosition: {x: 0.087, y: 0.038, z: -0.113}
+  handLocalEulerAngles: {x: -15.36, y: 118.824, z: 27.782}
   backLocalPosition: {x: 0, y: 0.15, z: -0.15}
   backLocalEulerAngles: {x: 0, y: 90, z: 0}
+  leftHandGripLocalPosition: {x: 0.3829877, y: 0.4060233, z: 1.119257}
+  leftHandGripLocalEulerAngles: {x: -2.308, y: 66.797, z: 193.328}
+  rightHandGripLocalPosition: {x: 0, y: 0, z: 0}
+  rightHandGripLocalEulerAngles: {x: 0, y: 0, z: 0}
+  firePointLocalPosition: {x: 0, y: 0.489, z: 2.496}
+  firePointLocalEulerAngles: {x: 0, y: 0, z: 0}

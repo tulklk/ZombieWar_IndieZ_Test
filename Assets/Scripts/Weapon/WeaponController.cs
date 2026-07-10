@@ -23,9 +23,12 @@ public class WeaponController : MonoBehaviour
     private Transform[] rightHandGripTransforms;
     private Transform[] firePointTransforms;
     private bool isAiming;
+    private bool isActionLocked;
     private readonly List<GameObject> activeMuzzleFlashes = new List<GameObject>();
+    private LineRenderer laserSightLine;
 
     public bool IsAiming => isAiming;
+    public bool IsActionLocked => isActionLocked;
 
     public Transform CurrentLeftHandGrip =>
         (leftHandGripTransforms != null && currentWeaponIndex < leftHandGripTransforms.Length)
@@ -64,6 +67,23 @@ public class WeaponController : MonoBehaviour
     private void LateUpdate()
     {
         SyncHandGripTransforms();
+        UpdateLaserSight();
+    }
+
+    private void OnDestroy()
+    {
+        if (laserSightLine != null)
+        {
+            Destroy(laserSightLine.gameObject);
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (laserSightLine != null)
+        {
+            laserSightLine.enabled = false;
+        }
     }
 
     private void SyncHandGripTransforms()
@@ -209,9 +229,24 @@ public class WeaponController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Locks/unlocks firing, aiming and weapon switching without disabling the whole component
+    /// (so weapon state such as the equipped index and hand-grip rig is preserved).
+    /// Used while the player is performing a non-shooting action, e.g. throwing a bomb.
+    /// </summary>
+    public void SetActionLocked(bool locked)
+    {
+        isActionLocked = locked;
+
+        if (isActionLocked)
+        {
+            ResetToIdlePose();
+        }
+    }
+
     public void StartShooting()
     {
-        if (!enabled)
+        if (!enabled || isActionLocked)
         {
             return;
         }
@@ -258,7 +293,7 @@ public class WeaponController : MonoBehaviour
 
     public void TryShoot()
     {
-        if (!enabled || CurrentWeapon == null || handSocket == null)
+        if (!enabled || isActionLocked || CurrentWeapon == null || handSocket == null)
         {
             return;
         }
@@ -321,20 +356,26 @@ public class WeaponController : MonoBehaviour
         return transform.forward;
     }
 
+    private const float MuzzleBacktrack = 0.5f;
+
     private void FireHitscan(Vector3 direction)
     {
-        Vector3 origin = GetMuzzlePosition();
-        Vector3 endPoint = origin + direction * CurrentWeapon.range;
+        Vector3 muzzlePosition = GetMuzzlePosition();
 
-        if (Physics.SphereCast(origin, HitAssistRadius, direction, out RaycastHit hit, CurrentWeapon.range))
+        // Start the sweep slightly behind the muzzle: SphereCast does not report a hit for
+        // colliders that already overlap the sphere at the start of the sweep, so a Zombie
+        // standing point-blank against the muzzle would otherwise be missed entirely.
+        Vector3 castOrigin = muzzlePosition - direction * MuzzleBacktrack;
+        float castDistance = CurrentWeapon.range + MuzzleBacktrack;
+        int hitMask = ~(1 << gameObject.layer);
+
+        if (Physics.SphereCast(castOrigin, HitAssistRadius, direction, out RaycastHit hit, castDistance, hitMask))
         {
-            endPoint = hit.point;
-
             ZombieHealth zombieHealth = hit.collider.GetComponentInParent<ZombieHealth>();
 
             if (zombieHealth != null)
             {
-                zombieHealth.TakeDamage(CurrentWeapon.damage);
+                zombieHealth.TakeDamage(CurrentWeapon.damage, hit.point, hit.normal);
             }
 
             if (CurrentWeapon.hitEffectPrefab != null)
@@ -342,13 +383,46 @@ public class WeaponController : MonoBehaviour
                 Instantiate(CurrentWeapon.hitEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
             }
         }
-
-        DrawLaser(origin, endPoint);
     }
 
-    private void DrawLaser(Vector3 start, Vector3 end)
+    private void UpdateLaserSight()
     {
-        GameObject laserObject = new GameObject("LaserShot");
+        if (!isAiming || CurrentWeapon == null || handSocket == null)
+        {
+            if (laserSightLine != null)
+            {
+                laserSightLine.enabled = false;
+            }
+
+            return;
+        }
+
+        if (laserSightLine == null)
+        {
+            laserSightLine = CreateLaserSightLine();
+        }
+
+        Vector3 muzzlePosition = GetMuzzlePosition();
+        Vector3 direction = GetMuzzleForward();
+        Vector3 endPoint = muzzlePosition + direction * CurrentWeapon.range;
+
+        Vector3 castOrigin = muzzlePosition - direction * MuzzleBacktrack;
+        float castDistance = CurrentWeapon.range + MuzzleBacktrack;
+        int hitMask = ~(1 << gameObject.layer);
+
+        if (Physics.SphereCast(castOrigin, HitAssistRadius, direction, out RaycastHit hit, castDistance, hitMask))
+        {
+            endPoint = hit.point;
+        }
+
+        laserSightLine.enabled = true;
+        laserSightLine.SetPosition(0, muzzlePosition);
+        laserSightLine.SetPosition(1, endPoint);
+    }
+
+    private LineRenderer CreateLaserSightLine()
+    {
+        GameObject laserObject = new GameObject("LaserSight");
         LineRenderer line = laserObject.AddComponent<LineRenderer>();
 
         line.material = GetLaserMaterial();
@@ -357,13 +431,13 @@ public class WeaponController : MonoBehaviour
         line.useWorldSpace = true;
         line.startColor = Color.red;
         line.endColor = Color.red;
-        line.startWidth = 0.02f;
-        line.endWidth = 0.02f;
+        line.startWidth = 0.06f;
+        line.endWidth = 0.06f;
         line.positionCount = 2;
-        line.SetPosition(0, start);
-        line.SetPosition(1, end);
+        line.sortingOrder = 10;
+        line.enabled = false;
 
-        Destroy(laserObject, 0.05f);
+        return line;
     }
 
     private static Vector3 CompensateForParentScale(Vector3 desiredWorldScale, Transform parent)
@@ -465,7 +539,7 @@ public class WeaponController : MonoBehaviour
 
     public void SwitchWeapon()
     {
-        if (weapons == null || weapons.Length == 0)
+        if (weapons == null || weapons.Length == 0 || isActionLocked)
         {
             return;
         }

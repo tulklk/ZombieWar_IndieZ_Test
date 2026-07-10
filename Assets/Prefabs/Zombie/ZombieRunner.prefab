@@ -3021,7 +3021,7 @@ GameObject:
   - component: {fileID: 2938090121229229115}
   - component: {fileID: 3552624016038086299}
   m_Layer: 3
-  m_Name: Zombie
+  m_Name: ZombieRunner
   m_TagString: Zombie
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3110,8 +3110,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c0a09871e0eae18a179398f4af1962b0, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   target: {fileID: 0}
   detectionRange: 10
   loseTargetRange: 14
@@ -3136,8 +3136,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2ad8b581217653f40bae3966a782cd02, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   maxHealth: 35
   currentHealth: 0
   animator: {fileID: 1688524461984924413}
@@ -3158,8 +3158,13 @@ MonoBehaviour:
   - {fileID: 236426965456613603}
   - {fileID: 6409070743672611559}
   - {fileID: 5143565617412476717}
-  hitColor: {r: 1, g: 0, b: 0, a: 1}
-  flashDuration: 0.1
+  hitColor: {r: 1, g: 0.25, b: 0, a: 1}
+  flashDuration: 0.3
+  floorSplatPrefab: {fileID: 5072542915499653931, guid: 514cebcc78aec1b4d8bfe09903d9ee42, type: 3}
+  directionalSplatPrefab: {fileID: 5072542915499653931, guid: 56ad05013316bcd46b21176a2f83f768, type: 3}
+  groundLayerMask:
+    serializedVersion: 2
+    m_Bits: 64
   destroyDelay: 2.5
 --- !u!136 &3552624016038086299
 CapsuleCollider:

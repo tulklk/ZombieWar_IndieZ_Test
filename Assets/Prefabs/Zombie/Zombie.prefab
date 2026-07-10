@@ -3158,8 +3158,13 @@ MonoBehaviour:
   - {fileID: 236426965456613603}
   - {fileID: 6409070743672611559}
   - {fileID: 5143565617412476717}
-  hitColor: {r: 1, g: 0, b: 0, a: 1}
-  flashDuration: 0.1
+  hitColor: {r: 1, g: 0.25, b: 0, a: 1}
+  flashDuration: 0.3
+  floorSplatPrefab: {fileID: 5072542915499653931, guid: 514cebcc78aec1b4d8bfe09903d9ee42, type: 3}
+  directionalSplatPrefab: {fileID: 5072542915499653931, guid: 56ad05013316bcd46b21176a2f83f768, type: 3}
+  groundLayerMask:
+    serializedVersion: 2
+    m_Bits: 64
   destroyDelay: 2.5
 --- !u!136 &3552624016038086299
 CapsuleCollider:

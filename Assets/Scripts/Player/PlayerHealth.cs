@@ -24,6 +24,8 @@ public class PlayerHealth : MonoBehaviour
     private Color[] originalColors;
     private bool isDead;
 
+    public bool IsDead => isDead;
+
     private void Awake()
     {
         currentHealth = maxHealth;
@@ -60,12 +62,16 @@ public class PlayerHealth : MonoBehaviour
         }
     }
 
+    private const float DamageNumberHeight = 1.6f;
+
     public void TakeDamage(int damage)
     {
         if (isDead) return;
 
         currentHealth -= damage;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
+        DamageNumberSpawner.Spawn(transform.position + Vector3.up * DamageNumberHeight, damage, Color.red);
 
         UpdateHealthUI();
         StartCoroutine(FlashHitEffect());

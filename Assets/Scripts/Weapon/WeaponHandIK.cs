@@ -6,6 +6,7 @@ public class WeaponHandIK : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private WeaponController weaponController;
     [SerializeField] private float ikBlendSpeed = 10f;
+    [SerializeField] private bool useHandIK = false;
 
     private float currentLeftWeight;
     private float currentRightWeight;
@@ -30,7 +31,7 @@ public class WeaponHandIK : MonoBehaviour
             return;
         }
 
-        bool isAiming = weaponController != null && weaponController.IsAiming;
+        bool isAiming = useHandIK && weaponController != null && weaponController.IsAiming;
 
         currentLeftWeight = ApplyHandIK(
             AvatarIKGoal.LeftHand,

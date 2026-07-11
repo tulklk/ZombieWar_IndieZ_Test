@@ -9,6 +9,11 @@ public class WeaponData : ScriptableObject
     public float fireRate = 0.2f;
     public float range = 30f;
 
+    [Header("Ammo")]
+    public int maxAmmo = 120;
+    public int magazineSize = 30;
+    public Sprite hudIcon;
+
     [Header("Projectile")]
     public GameObject bulletPrefab;
     public float bulletSpeed = 25f;

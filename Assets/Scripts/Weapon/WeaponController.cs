@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 using TMPro;
 
 public class WeaponController : MonoBehaviour
@@ -16,19 +17,30 @@ public class WeaponController : MonoBehaviour
     [SerializeField] private Transform backSocket;
     [SerializeField] private PlayerAnimationController animationController;
     [SerializeField] private TMP_Text weaponNameText;
+    [SerializeField] private TMP_Text bulletCountMaxText;
+    [SerializeField] private TMP_Text bulletCountCurrentText;
+    [SerializeField] private Image gunIconImage;
+
+    [Header("Reload")]
+    [SerializeField] private float reloadDuration = 1.5f;
 
     private float nextFireTime;
+    private int[] currentMagazineAmmo;
+    private int[] currentReserveAmmo;
     private GameObject[] weaponModelInstances;
     private Transform[] leftHandGripTransforms;
     private Transform[] rightHandGripTransforms;
     private Transform[] firePointTransforms;
     private bool isAiming;
     private bool isActionLocked;
+    private bool isReloading;
+    private Coroutine reloadCoroutine;
     private readonly List<GameObject> activeMuzzleFlashes = new List<GameObject>();
     private LineRenderer laserSightLine;
 
     public bool IsAiming => isAiming;
     public bool IsActionLocked => isActionLocked;
+    public bool IsReloading => isReloading;
 
     public Transform CurrentLeftHandGrip =>
         (leftHandGripTransforms != null && currentWeaponIndex < leftHandGripTransforms.Length)
@@ -60,8 +72,31 @@ public class WeaponController : MonoBehaviour
 
     private void Start()
     {
+        InitializeAmmo();
         SpawnWeaponModels();
         UpdateWeaponUI();
+    }
+
+    private void InitializeAmmo()
+    {
+        if (weapons == null)
+        {
+            return;
+        }
+
+        currentMagazineAmmo = new int[weapons.Length];
+        currentReserveAmmo = new int[weapons.Length];
+
+        for (int i = 0; i < weapons.Length; i++)
+        {
+            if (weapons[i] == null)
+            {
+                continue;
+            }
+
+            currentMagazineAmmo[i] = weapons[i].magazineSize;
+            currentReserveAmmo[i] = Mathf.Max(0, weapons[i].maxAmmo - weapons[i].magazineSize);
+        }
     }
 
     private void LateUpdate()
@@ -240,6 +275,7 @@ public class WeaponController : MonoBehaviour
 
         if (isActionLocked)
         {
+            CancelReload();
             ResetToIdlePose();
         }
     }
@@ -293,7 +329,7 @@ public class WeaponController : MonoBehaviour
 
     public void TryShoot()
     {
-        if (!enabled || isActionLocked || CurrentWeapon == null || handSocket == null)
+        if (!enabled || isActionLocked || isReloading || CurrentWeapon == null || handSocket == null)
         {
             return;
         }
@@ -303,7 +339,21 @@ public class WeaponController : MonoBehaviour
             return;
         }
 
+        if (currentMagazineAmmo == null)
+        {
+            return;
+        }
+
+        if (currentMagazineAmmo[currentWeaponIndex] <= 0)
+        {
+            TryReload();
+            return;
+        }
+
         nextFireTime = Time.time + CurrentWeapon.fireRate;
+
+        currentMagazineAmmo[currentWeaponIndex]--;
+        UpdateWeaponUI();
 
         animationController?.PlayShootShot();
 
@@ -318,6 +368,11 @@ public class WeaponController : MonoBehaviour
 
         PlayMuzzleFlash();
         StartCoroutine(PlayRecoil());
+
+        if (currentMagazineAmmo[currentWeaponIndex] <= 0)
+        {
+            TryReload();
+        }
     }
 
     private const float HitAssistRadius = 0.35f;
@@ -387,7 +442,7 @@ public class WeaponController : MonoBehaviour
 
     private void UpdateLaserSight()
     {
-        if (!isAiming || CurrentWeapon == null || handSocket == null)
+        if (!isAiming || isReloading || CurrentWeapon == null || handSocket == null)
         {
             if (laserSightLine != null)
             {
@@ -429,8 +484,9 @@ public class WeaponController : MonoBehaviour
         line.textureMode = LineTextureMode.Stretch;
         line.numCapVertices = 4;
         line.useWorldSpace = true;
-        line.startColor = Color.red;
-        line.endColor = Color.red;
+        Color laserColor = new Color(1f, 0f, 0f, 0.35f);
+        line.startColor = laserColor;
+        line.endColor = laserColor;
         line.startWidth = 0.06f;
         line.endWidth = 0.06f;
         line.positionCount = 2;
@@ -539,7 +595,7 @@ public class WeaponController : MonoBehaviour
 
     public void SwitchWeapon()
     {
-        if (weapons == null || weapons.Length == 0 || isActionLocked)
+        if (weapons == null || weapons.Length == 0 || isActionLocked || isReloading)
         {
             return;
         }
@@ -561,11 +617,94 @@ public class WeaponController : MonoBehaviour
         Debug.Log("Switched weapon: " + CurrentWeapon.weaponName);
     }
 
+    public void TryReload()
+    {
+        if (weapons == null || weapons.Length == 0 || isActionLocked || isReloading || currentMagazineAmmo == null)
+        {
+            return;
+        }
+
+        int index = currentWeaponIndex;
+        int missingAmmo = CurrentWeapon.magazineSize - currentMagazineAmmo[index];
+
+        if (missingAmmo <= 0 || currentReserveAmmo[index] <= 0)
+        {
+            return;
+        }
+
+        isReloading = true;
+
+        isAiming = true;
+        EquipWeaponVisual(index);
+
+        animationController?.PlayReload();
+
+        reloadCoroutine = StartCoroutine(ReloadRoutine(index));
+    }
+
+    private IEnumerator ReloadRoutine(int weaponIndex)
+    {
+        yield return new WaitForSeconds(reloadDuration);
+
+        int missingAmmo = weapons[weaponIndex].magazineSize - currentMagazineAmmo[weaponIndex];
+        int amountToLoad = Mathf.Min(missingAmmo, currentReserveAmmo[weaponIndex]);
+
+        currentMagazineAmmo[weaponIndex] += amountToLoad;
+        currentReserveAmmo[weaponIndex] -= amountToLoad;
+
+        if (weaponIndex == currentWeaponIndex)
+        {
+            UpdateWeaponUI();
+        }
+
+        isReloading = false;
+        reloadCoroutine = null;
+
+        animationController?.EndReload();
+    }
+
+    private void CancelReload()
+    {
+        if (!isReloading)
+        {
+            return;
+        }
+
+        if (reloadCoroutine != null)
+        {
+            StopCoroutine(reloadCoroutine);
+            reloadCoroutine = null;
+        }
+
+        isReloading = false;
+        animationController?.EndReload();
+    }
+
     private void UpdateWeaponUI()
     {
-        if (weaponNameText != null && CurrentWeapon != null)
+        if (CurrentWeapon == null)
+        {
+            return;
+        }
+
+        if (weaponNameText != null)
         {
             weaponNameText.text = CurrentWeapon.weaponName;
+        }
+
+        if (bulletCountMaxText != null && currentReserveAmmo != null)
+        {
+            bulletCountMaxText.text = currentReserveAmmo[currentWeaponIndex].ToString();
+        }
+
+        if (bulletCountCurrentText != null && currentMagazineAmmo != null)
+        {
+            bulletCountCurrentText.text = currentMagazineAmmo[currentWeaponIndex].ToString();
+        }
+
+        if (gunIconImage != null && CurrentWeapon.hudIcon != null)
+        {
+            gunIconImage.sprite = CurrentWeapon.hudIcon;
         }
     }
 

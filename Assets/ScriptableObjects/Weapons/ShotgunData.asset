@@ -16,6 +16,9 @@ MonoBehaviour:
   damage: 12
   fireRate: 0.7
   range: 18
+  maxAmmo: 40
+  magazineSize: 8
+  hudIcon: {fileID: 21300000, guid: b2596d03733a6a8489210461ff05deae, type: 3}
   bulletPrefab: {fileID: 8297191405790434548, guid: 511450690c896a94587929e46a3cc2ed, type: 3}
   bulletSpeed: 25
   bulletLifeTime: 3
@@ -31,8 +34,8 @@ MonoBehaviour:
   hitEffectPrefab: {fileID: 0}
   weaponModelPrefab: {fileID: 919132149155446097, guid: 8b36fb41929fc22429f0083d817b8040, type: 3}
   modelLocalScale: {x: 0.2, y: 0.2, z: 0.2}
-  handLocalPosition: {x: 0.087, y: 0.038, z: -0.113}
-  handLocalEulerAngles: {x: -15.36, y: 118.824, z: 27.782}
+  handLocalPosition: {x: 0.146, y: 0.026, z: -0.137}
+  handLocalEulerAngles: {x: -5.559, y: 128.261, z: 18.111}
   backLocalPosition: {x: 0, y: 0.15, z: -0.15}
   backLocalEulerAngles: {x: 0, y: 90, z: 0}
   leftHandGripLocalPosition: {x: 0.3829877, y: 0.4060233, z: 1.119257}

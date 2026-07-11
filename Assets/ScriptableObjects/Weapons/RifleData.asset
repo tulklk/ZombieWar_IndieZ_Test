@@ -16,6 +16,9 @@ MonoBehaviour:
   damage: 15
   fireRate: 0.15
   range: 35
+  maxAmmo: 120
+  magazineSize: 30
+  hudIcon: {fileID: 21300000, guid: 7f246099a3005ff4fada1388846453c5, type: 3}
   bulletPrefab: {fileID: 8297191405790434548, guid: 511450690c896a94587929e46a3cc2ed, type: 3}
   bulletSpeed: 25
   bulletLifeTime: 3
@@ -31,13 +34,13 @@ MonoBehaviour:
   hitEffectPrefab: {fileID: 0}
   weaponModelPrefab: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
   modelLocalScale: {x: 0.2, y: 0.2, z: 0.2}
-  handLocalPosition: {x: 0.087, y: 0.038, z: -0.113}
-  handLocalEulerAngles: {x: -15.36, y: 118.824, z: 27.782}
+  handLocalPosition: {x: 0.146, y: 0.026, z: -0.137}
+  handLocalEulerAngles: {x: -5.559, y: 128.261, z: 18.111}
   backLocalPosition: {x: -0.015, y: 0.135, z: 0.159}
   backLocalEulerAngles: {x: 0, y: 90, z: 0}
-  leftHandGripLocalPosition: {x: 0.3829877, y: 0.4060233, z: 1.119257}
-  leftHandGripLocalEulerAngles: {x: -2.308, y: 66.797, z: 193.328}
-  rightHandGripLocalPosition: {x: 0, y: 0, z: 0}
+  leftHandGripLocalPosition: {x: 19.7, y: 9.2, z: 18.8}
+  leftHandGripLocalEulerAngles: {x: -20, y: 70, z: 10}
+  rightHandGripLocalPosition: {x: -0.002, y: -0.024, z: -0.923}
   rightHandGripLocalEulerAngles: {x: 0, y: 0, z: 0}
   firePointLocalPosition: {x: 0, y: 0.489, z: 2.496}
   firePointLocalEulerAngles: {x: 0, y: 0, z: 0}

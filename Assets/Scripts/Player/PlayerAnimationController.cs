@@ -33,6 +33,30 @@ public class PlayerAnimationController : MonoBehaviour
         }
     }
 
+    public void PlayReload()
+    {
+        currentMoveSpeed = 0f;
+        animator.SetFloat(SpeedHash, 0f);
+        animator.SetFloat(MotionSpeedHash, 0f);
+
+        int actionLayer = animator.GetLayerIndex("ActionOverride");
+
+        if (actionLayer >= 0)
+        {
+            animator.Play("Reload", actionLayer, 0f);
+        }
+    }
+
+    public void EndReload()
+    {
+        int actionLayer = animator.GetLayerIndex("ActionOverride");
+
+        if (actionLayer >= 0)
+        {
+            animator.Play("BombIdle", actionLayer, 0f);
+        }
+    }
+
     public void PlayDeath()
     {
         animator.SetBool(IsShootingHash, false);

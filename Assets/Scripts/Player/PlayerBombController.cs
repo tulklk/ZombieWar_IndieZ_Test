@@ -36,6 +36,7 @@ public class PlayerBombController : MonoBehaviour
     private static readonly int IsThrowingBombHash = Animator.StringToHash("IsThrowingBomb");
 
     private bool isThrowingBomb;
+    private bool bombInHandVisible;
     private float lastThrowTime = -Mathf.Infinity;
     private GameObject heldBombInstance;
     private Coroutine failsafeCoroutine;
@@ -71,10 +72,46 @@ public class PlayerBombController : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (!bombInHandVisible)
+        {
+            return;
+        }
+
+        Vector3 origin = bombHandSocket != null ? bombHandSocket.position : transform.position;
+        ShowTrajectoryPreview(origin);
+    }
+
+    /// <summary>Called on BombBtn press-down: shows the aiming trajectory before the throw actually starts.</summary>
+    public void BeginAim()
+    {
+        if (isThrowingBomb || !CanThrowBomb())
+        {
+            return;
+        }
+
+        bombInHandVisible = true;
+    }
+
+    /// <summary>Called on BombBtn release (or if the button is disabled) without a committed throw.</summary>
+    public void CancelAim()
+    {
+        if (isThrowingBomb)
+        {
+            return;
+        }
+
+        bombInHandVisible = false;
+        trajectoryPreview?.HideArc();
+    }
+
     public void TryThrowBomb()
     {
         if (!CanThrowBomb())
         {
+            bombInHandVisible = false;
+            trajectoryPreview?.HideArc();
             return;
         }
 
@@ -110,9 +147,10 @@ public class PlayerBombController : MonoBehaviour
     {
         yield return new WaitForSeconds(spawnInHandDelay);
         SpawnBombInHand();
-        ShowTrajectoryPreview(bombHandSocket != null ? bombHandSocket.position : transform.position);
+        bombInHandVisible = true;
 
         yield return new WaitForSeconds(Mathf.Max(0f, releaseDelay - spawnInHandDelay));
+        bombInHandVisible = false;
         ReleaseBomb();
 
         yield return new WaitForSeconds(Mathf.Max(0f, finishDelay - releaseDelay));
@@ -127,7 +165,7 @@ public class PlayerBombController : MonoBehaviour
         }
 
         Vector3 velocity = (transform.forward * forwardForce) + (Vector3.up * upwardForce);
-        trajectoryPreview.Show(origin, velocity);
+        trajectoryPreview.ShowArc(origin, velocity);
     }
 
     private bool CanThrowBomb()
@@ -250,8 +288,9 @@ public class PlayerBombController : MonoBehaviour
 
         if (trajectoryPreview != null)
         {
-            trajectoryPreview.Show(bombInstance.transform.position, bombRigidbody.velocity);
-            bombProjectile.AddExplodedListener(trajectoryPreview.Hide);
+            trajectoryPreview.HideArc();
+            trajectoryPreview.StartTrackingFalling(bombInstance.transform);
+            bombProjectile.AddExplodedListener(trajectoryPreview.StopTracking);
         }
     }
 
@@ -272,6 +311,7 @@ public class PlayerBombController : MonoBehaviour
     public void FinishBombThrow()
     {
         isThrowingBomb = false;
+        bombInHandVisible = false;
 
         if (animator != null)
         {

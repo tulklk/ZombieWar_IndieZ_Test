@@ -11,15 +11,30 @@ public class BombTrajectoryPreview : MonoBehaviour
     [SerializeField] private int resolution = 30;
     [SerializeField] private float simulationTime = 3f;
     [SerializeField] private LayerMask groundMask = ~0;
+    [SerializeField] private float groundRaycastDistance = 50f;
 
     private LineRenderer trajectoryLine;
     private LineRenderer landingRing;
+
+    private Transform trackedBomb;
+    private bool isTrackingFalling;
 
     private void Awake()
     {
         trajectoryLine = CreateLineRenderer("TrajectoryLine", false);
         landingRing = CreateLineRenderer("LandingRing", true);
         Hide();
+    }
+
+    private void Update()
+    {
+        if (!isTrackingFalling || trackedBomb == null)
+        {
+            return;
+        }
+
+        DrawLandingRing(GetGroundPointBelow(trackedBomb.position));
+        landingRing.enabled = true;
     }
 
     private LineRenderer CreateLineRenderer(string childName, bool loop)
@@ -40,7 +55,8 @@ public class BombTrajectoryPreview : MonoBehaviour
         return line;
     }
 
-    public void Show(Vector3 origin, Vector3 velocity)
+    /// <summary>Aiming preview while the bomb is still held in hand: draws the predicted parabola and landing point.</summary>
+    public void ShowArc(Vector3 origin, Vector3 velocity)
     {
         Vector3 gravity = Physics.gravity;
         Vector3 position = origin;
@@ -92,6 +108,36 @@ public class BombTrajectoryPreview : MonoBehaviour
         landingRing.enabled = true;
     }
 
+    public void HideArc()
+    {
+        trajectoryLine.enabled = false;
+    }
+
+    /// <summary>Bomb has left the hand: continuously follows the real projectile's ground contact point every frame.</summary>
+    public void StartTrackingFalling(Transform bombTransform)
+    {
+        trajectoryLine.enabled = false;
+        trackedBomb = bombTransform;
+        isTrackingFalling = true;
+    }
+
+    public void StopTracking()
+    {
+        isTrackingFalling = false;
+        trackedBomb = null;
+        landingRing.enabled = false;
+    }
+
+    private Vector3 GetGroundPointBelow(Vector3 position)
+    {
+        if (Physics.Raycast(position, Vector3.down, out RaycastHit hit, groundRaycastDistance, groundMask))
+        {
+            return hit.point;
+        }
+
+        return position;
+    }
+
     private void DrawLandingRing(Vector3 center)
     {
         const int segments = 20;
@@ -111,5 +157,7 @@ public class BombTrajectoryPreview : MonoBehaviour
     {
         trajectoryLine.enabled = false;
         landingRing.enabled = false;
+        isTrackingFalling = false;
+        trackedBomb = null;
     }
 }

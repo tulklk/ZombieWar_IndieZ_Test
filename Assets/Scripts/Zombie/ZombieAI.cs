@@ -131,6 +131,13 @@ public class ZombieAI : MonoBehaviour
         UpdateMoveAnimation();
     }
 
+    /// <summary>
+    /// A NavMeshAgent can end up "not on a NavMesh" (spawn point too far from any baked
+    /// surface, or SetDead() disabled it) — writing to isStopped/speed/SetDestination on
+    /// such an agent throws. Every state-changing call below goes through this guard.
+    /// </summary>
+    protected bool IsAgentUsable => agent != null && agent.isOnNavMesh;
+
     protected float GetDistanceToPlayer()
     {
         if (target == null)
@@ -149,8 +156,12 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Idle;
-        agent.isStopped = true;
-        agent.speed = 0f;
+
+        if (IsAgentUsable)
+        {
+            agent.isStopped = true;
+            agent.speed = 0f;
+        }
 
         idleTimer = 0f;
         currentIdleDuration = Random.Range(idleTimeMin, idleTimeMax);
@@ -174,6 +185,12 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Patrol;
+
+        if (!IsAgentUsable)
+        {
+            return;
+        }
+
         agent.isStopped = false;
         agent.speed = patrolWalkSpeed;
 
@@ -220,7 +237,11 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Chase;
-        agent.isStopped = false;
+
+        if (IsAgentUsable)
+        {
+            agent.isStopped = false;
+        }
     }
 
     protected virtual void UpdateChaseState()
@@ -232,6 +253,11 @@ public class ZombieAI : MonoBehaviour
         }
 
         chaseTimer += Time.deltaTime;
+
+        if (!IsAgentUsable)
+        {
+            return;
+        }
 
         agent.speed = CalculateChaseSpeed(chaseTimer);
         agent.SetDestination(target.position);
@@ -251,8 +277,12 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Attack;
-        agent.isStopped = true;
-        agent.speed = 0f;
+
+        if (IsAgentUsable)
+        {
+            agent.isStopped = true;
+            agent.speed = 0f;
+        }
     }
 
     protected virtual void UpdateAttackState()
@@ -337,9 +367,13 @@ public class ZombieAI : MonoBehaviour
     {
         currentState = ZombieState.Dead;
 
-        if (agent != null)
+        if (IsAgentUsable)
         {
             agent.isStopped = true;
+        }
+
+        if (agent != null)
+        {
             agent.enabled = false;
         }
     }

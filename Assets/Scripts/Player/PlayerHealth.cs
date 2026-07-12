@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -25,6 +26,11 @@ public class PlayerHealth : MonoBehaviour
     private bool isDead;
 
     public bool IsDead => isDead;
+    public float CurrentHealth => currentHealth;
+    public float MaxHealth => maxHealth;
+
+    /// <summary>Fired whenever health changes, passing (currentHealth, maxHealth) as floats.</summary>
+    public event Action<float, float> OnHealthChanged;
 
     private void Awake()
     {
@@ -82,12 +88,24 @@ public class PlayerHealth : MonoBehaviour
         }
     }
 
+    public void Heal(int amount)
+    {
+        if (isDead) return;
+
+        currentHealth += amount;
+        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+
+        UpdateHealthUI();
+    }
+
     private void UpdateHealthUI()
     {
         if (healthFillImage != null)
         {
             healthFillImage.fillAmount = (float)currentHealth / maxHealth;
         }
+
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
     private void CacheOriginalColors()

@@ -20,6 +20,10 @@ public static class MinimapSetup
     private const string MinimapCameraName = "MiniMapCamera";
     private const string PlayerMarkerIconPath = "Assets/UI/Images/Material/IconGPS.png";
 
+    private const string CircleSpritePath = "Assets/UI/Images/Material/MinimapCircleMask.png";
+    private const int CircleTextureSize = 256;
+    private const float BorderThickness = 8f;
+
     [MenuItem("Tools/Zombie War/Setup Minimap")]
     public static void Setup()
     {
@@ -100,6 +104,63 @@ public static class MinimapSetup
         AssetDatabase.Refresh();
 
         return AssetDatabase.LoadAssetAtPath<RenderTexture>(RenderTexturePath);
+    }
+
+    /// <summary>
+    /// Generates (once) a plain white, antialiased circular sprite used both as the
+    /// visible border ring and as the Mask shape that clips the minimap to a circle.
+    /// Unity's built-in Knob sprite was considered but carries baked-in bevel shading,
+    /// so a flat procedural circle gives a cleaner, truly white border.
+    /// </summary>
+    private static Sprite GetOrCreateCircleSprite()
+    {
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(CircleSpritePath);
+
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        Texture2D texture = new Texture2D(CircleTextureSize, CircleTextureSize, TextureFormat.RGBA32, false);
+        Color32[] pixels = new Color32[CircleTextureSize * CircleTextureSize];
+        float radius = CircleTextureSize / 2f;
+        Vector2 center = new Vector2(radius, radius);
+
+        for (int y = 0; y < CircleTextureSize; y++)
+        {
+            for (int x = 0; x < CircleTextureSize; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                float alpha = Mathf.Clamp01(radius - distance);
+                pixels[y * CircleTextureSize + x] = new Color32(255, 255, 255, (byte)(alpha * 255f));
+            }
+        }
+
+        texture.SetPixels32(pixels);
+        texture.Apply();
+
+        byte[] pngData = texture.EncodeToPNG();
+        Object.DestroyImmediate(texture);
+
+        string folder = System.IO.Path.GetDirectoryName(CircleSpritePath)?.Replace('\\', '/');
+        EnsureFolder(folder);
+
+        System.IO.File.WriteAllBytes(CircleSpritePath, pngData);
+        AssetDatabase.ImportAsset(CircleSpritePath);
+
+        TextureImporter importer = AssetImporter.GetAtPath(CircleSpritePath) as TextureImporter;
+
+        if (importer != null)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.alphaIsTransparency = true;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(CircleSpritePath);
     }
 
     private static void EnsureFolder(string path)
@@ -187,18 +248,49 @@ public static class MinimapSetup
         RectTransform rootRect = GetOrCreateUIChild<RectTransform>(gameCanvas.transform, "MiniMapRoot", out _);
         ConfigureTopRightAnchor(rootRect, new Vector2(-20f, -20f), new Vector2(260f, 260f));
 
-        RectTransform frameRect = GetOrCreateUIChild<Image>(rootRect, "MiniMapFrame", out Image frameImage);
-        StretchFull(frameRect);
-
-        if (frameImage.sprite == null)
+        // Older (square) setup left a plain rectangular backdrop — replaced by the
+        // circular border + mask below, so remove it if this scene still has one.
+        Transform oldFrame = rootRect.Find("MiniMapFrame");
+        if (oldFrame != null)
         {
-            frameImage.color = new Color(0.05f, 0.05f, 0.05f, 0.85f);
+            Undo.DestroyObjectImmediate(oldFrame.gameObject);
         }
 
-        frameImage.raycastTarget = false;
+        Sprite circleSprite = GetOrCreateCircleSprite();
 
-        rawImageRect = GetOrCreateUIChild<RawImage>(rootRect, "MiniMapRawImage", out RawImage rawImage);
-        StretchWithMargin(rawImageRect, 4f);
+        RectTransform borderRect = GetOrCreateUIChild<Image>(rootRect, "MiniMapBorder", out Image borderImage);
+        StretchFull(borderRect);
+        borderImage.sprite = circleSprite;
+        borderImage.type = Image.Type.Simple;
+        borderImage.color = Color.white;
+        borderImage.raycastTarget = false;
+        borderRect.SetSiblingIndex(0);
+
+        RectTransform maskRect = GetOrCreateUIChild<Image>(rootRect, "MiniMapMask", out Image maskImage);
+        StretchWithMargin(maskRect, BorderThickness);
+        maskImage.sprite = circleSprite;
+        maskImage.type = Image.Type.Simple;
+        maskImage.color = Color.white;
+        maskImage.raycastTarget = false;
+        maskRect.SetSiblingIndex(1);
+
+        Mask minimapMask = maskRect.GetComponent<Mask>();
+        if (minimapMask == null)
+        {
+            minimapMask = Undo.AddComponent<Mask>(maskRect.gameObject);
+        }
+        minimapMask.showMaskGraphic = false;
+
+        // Migrate a RawImage left over directly under root (older square setup) into
+        // the new circular mask instead of creating a duplicate.
+        Transform strayRawImage = rootRect.Find("MiniMapRawImage");
+        if (strayRawImage != null && strayRawImage.parent == rootRect)
+        {
+            Undo.SetTransformParent(strayRawImage, maskRect, "Setup Minimap");
+        }
+
+        rawImageRect = GetOrCreateUIChild<RawImage>(maskRect, "MiniMapRawImage", out RawImage rawImage);
+        StretchFull(rawImageRect);
         rawImage.texture = renderTexture;
         rawImage.raycastTarget = false;
 

@@ -33,11 +33,16 @@ public class MinimapController : MonoBehaviour
     [SerializeField] private bool rotateMarkerWithPlayer = true;
     [SerializeField] private bool clampMarkerInsideMap = true;
 
+    [Header("Performance")]
+    [Tooltip("How many times per second MiniMapCamera actually re-renders. Marker UI still updates every frame — only the background map render is throttled.")]
+    [SerializeField] private float cameraRefreshRate = 12f;
+
     [Header("Debug")]
     [SerializeField] private bool showDebugLogs;
 
     private readonly List<MinimapIcon> icons = new List<MinimapIcon>();
     private bool cameraFramed;
+    private float nextCameraRenderTime;
 
     private void Awake()
     {
@@ -56,7 +61,42 @@ public class MinimapController : MonoBehaviour
             }
         }
 
+        ConfigureCameraPerformance();
         FrameCameraOverMap();
+    }
+
+    /// <summary>
+    /// One-time cheap-camera setup: no HDR/MSAA/depth texture, and only the layers the
+    /// minimap actually needs to show — keeps this second camera from paying for shadows,
+    /// particles, bullets or world-space UI it doesn't render anything useful for.
+    /// </summary>
+    private void ConfigureCameraPerformance()
+    {
+        if (minimapCamera == null)
+        {
+            return;
+        }
+
+        minimapCamera.allowHDR = false;
+        minimapCamera.allowMSAA = false;
+        minimapCamera.depthTextureMode = DepthTextureMode.None;
+        minimapCamera.useOcclusionCulling = false;
+
+        // The project doesn't have dedicated layers for Player/Bullet/Particle/Bomb — map
+        // props (buildings, roads...) and gameplay objects both live on Default, so we
+        // can't fully separate "map" from "gameplay clutter" without a bigger layer
+        // restructure. This still drops Zombie and UI, which is a real, safe win; Player/
+        // bullets/particles keep rendering here today (they show as UI markers on top,
+        // via MinimapIcon, but the 3D camera still sees them too until layers are split).
+        int zombieLayer = LayerMask.NameToLayer("Zombie");
+        int uiLayer = LayerMask.NameToLayer("UI");
+
+        int mask = ~0;
+
+        if (zombieLayer >= 0) mask &= ~(1 << zombieLayer);
+        if (uiLayer >= 0) mask &= ~(1 << uiLayer);
+
+        minimapCamera.cullingMask = mask;
     }
 
     private void LateUpdate()
@@ -75,6 +115,22 @@ public class MinimapController : MonoBehaviour
         else if (!cameraFramed)
         {
             FrameCameraOverMap();
+        }
+
+        // Throttle the actual GPU render — the map barely changes frame to frame, so
+        // redrawing it at full game framerate is wasted work on mobile.
+        if (cameraRefreshRate <= 0f)
+        {
+            minimapCamera.enabled = true;
+        }
+        else if (Time.time >= nextCameraRenderTime)
+        {
+            minimapCamera.enabled = true;
+            nextCameraRenderTime = Time.time + (1f / cameraRefreshRate);
+        }
+        else
+        {
+            minimapCamera.enabled = false;
         }
 
         UpdateMarker(playerMarker, player, rotateMarkerWithPlayer);

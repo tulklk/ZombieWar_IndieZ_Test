@@ -22,15 +22,15 @@ public static class LateAfternoonLightingSetup
     private static readonly Color SunColor = new Color32(255, 180, 106, 255);
     private static readonly Color FogColor = new Color32(38, 49, 61, 255);
 
-    private const float SkyboxExposure = 0.78f;
+    private const float SkyboxExposure = 0.92f;
     private static readonly Vector3 SunEulerAngles = new Vector3(18f, -35f, 0f);
-    private const float SunIntensity = 0.85f;
+    private const float SunIntensity = 1.05f;
     private const float SunIndirectMultiplier = 0.75f;
     private const float SunShadowStrength = 0.78f;
     private const float SunShadowBias = 0.05f;
     private const float SunShadowNormalBias = 0.4f;
     private const float SunShadowNearPlane = 0.2f;
-    private const float AmbientIntensity = 0.78f;
+    private const float AmbientIntensity = 0.95f;
     private const float ReflectionIntensity = 0.6f;
     private const float FogDensity = 0.006f;
 

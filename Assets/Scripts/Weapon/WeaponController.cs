@@ -370,8 +370,9 @@ public class WeaponController : MonoBehaviour
 
     public void StopShooting()
     {
-        // Releasing Fire no longer resets the pose - the Shoot pose stays held until the
-        // player actually moves (see ResetToIdlePose, called from PlayerMovement).
+        // Releasing Fire no longer holsters the weapon — once drawn, it stays raised
+        // (and the player can walk/run freely) until the player explicitly taps
+        // BulletBoard, which is wired directly to ResetToIdlePose() in the scene.
     }
 
     public void ResetToIdlePose()

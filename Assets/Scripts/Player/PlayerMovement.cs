@@ -108,8 +108,6 @@ public class PlayerMovement : MonoBehaviour
                 targetRotation,
                 rotationSpeed * Time.deltaTime
             );
-
-            weaponController?.ResetToIdlePose();
         }
 
         // Same curved value drives the Animator too, so foot movement in the Walk/Run

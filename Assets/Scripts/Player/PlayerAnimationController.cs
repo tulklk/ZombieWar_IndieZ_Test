@@ -11,6 +11,19 @@ public class PlayerAnimationController : MonoBehaviour
 
     private float currentMoveSpeed;
 
+    private void Awake()
+    {
+        // UpperBody defaults to weight 1 in the controller — start it at 0 so the
+        // (otherwise static) UpperIdle pose doesn't override Base Layer's own
+        // Idle/Walk/Run arm swing before the player has ever fired a shot.
+        int upperBodyLayer = animator.GetLayerIndex("UpperBody");
+
+        if (upperBodyLayer >= 0)
+        {
+            animator.SetLayerWeight(upperBodyLayer, 0f);
+        }
+    }
+
     public void SetMoveSpeed(float inputMagnitude, float speed)
     {
         currentMoveSpeed = Mathf.Lerp(currentMoveSpeed, speed, Time.deltaTime * 10f);
@@ -18,9 +31,22 @@ public class PlayerAnimationController : MonoBehaviour
         animator.SetFloat(MotionSpeedHash, inputMagnitude);
     }
 
+    /// <summary>
+    /// UpperBody only needs to override the arms while actually aiming/shooting — with
+    /// its weight at 0 the rest of the time, Base Layer's own Idle/Walk/Run clips (which
+    /// already animate the arms correctly) show through untouched instead of being
+    /// frozen into UpperIdle's static pose.
+    /// </summary>
     public void SetShooting(bool isShooting)
     {
         animator.SetBool(IsShootingHash, isShooting);
+
+        int upperBodyLayer = animator.GetLayerIndex("UpperBody");
+
+        if (upperBodyLayer >= 0)
+        {
+            animator.SetLayerWeight(upperBodyLayer, isShooting ? 1f : 0f);
+        }
     }
 
     public void PlayShootShot()

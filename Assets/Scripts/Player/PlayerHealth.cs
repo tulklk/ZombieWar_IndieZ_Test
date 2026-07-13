@@ -24,6 +24,9 @@ public class PlayerHealth : MonoBehaviour
 
     private Color[] originalColors;
     private bool isDead;
+    private MaterialPropertyBlock propertyBlock;
+
+    private static readonly int ColorPropertyId = Shader.PropertyToID("_Color");
 
     public bool IsDead => isDead;
     public float CurrentHealth => currentHealth;
@@ -31,6 +34,9 @@ public class PlayerHealth : MonoBehaviour
 
     /// <summary>Fired whenever health changes, passing (currentHealth, maxHealth) as floats.</summary>
     public event Action<float, float> OnHealthChanged;
+
+    /// <summary>Fired once per TakeDamage call (not on Heal) — one hit, one event.</summary>
+    public event Action<int> OnDamaged;
 
     private void Awake()
     {
@@ -81,6 +87,7 @@ public class PlayerHealth : MonoBehaviour
 
         UpdateHealthUI();
         StartCoroutine(FlashHitEffect());
+        OnDamaged?.Invoke(damage);
 
         if (currentHealth <= 0)
         {
@@ -116,7 +123,11 @@ public class PlayerHealth : MonoBehaviour
 
         for (int i = 0; i < playerRenderers.Length; i++)
         {
-            originalColors[i] = playerRenderers[i].material.color;
+            // sharedMaterial (not .material) so reading the starting color doesn't itself
+            // clone a per-renderer material instance.
+            originalColors[i] = playerRenderers[i].sharedMaterial != null
+                ? playerRenderers[i].sharedMaterial.color
+                : Color.white;
         }
     }
 
@@ -126,15 +137,27 @@ public class PlayerHealth : MonoBehaviour
 
         for (int i = 0; i < playerRenderers.Length; i++)
         {
-            playerRenderers[i].material.color = hitColor;
+            SetRendererColor(playerRenderers[i], hitColor);
         }
 
         yield return new WaitForSeconds(flashDuration);
 
         for (int i = 0; i < playerRenderers.Length; i++)
         {
-            playerRenderers[i].material.color = originalColors[i];
+            SetRendererColor(playerRenderers[i], originalColors[i]);
         }
+    }
+
+    // MaterialPropertyBlock overrides the color per-renderer at draw time without cloning
+    // the shared Material — keeps GPU instancing/batching intact across many hit flashes.
+    private void SetRendererColor(Renderer renderer, Color color)
+    {
+        if (renderer == null) return;
+
+        propertyBlock ??= new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(propertyBlock);
+        propertyBlock.SetColor(ColorPropertyId, color);
+        renderer.SetPropertyBlock(propertyBlock);
     }
 
     private void Die()

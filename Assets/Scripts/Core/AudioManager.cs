@@ -157,7 +157,14 @@ public class AudioManager : MonoBehaviour
 
     public void PlayButtonClickSfx() => PlaySfx(buttonClickClip);
 
-    /// <summary>Positional one-off SFX (explosions, etc.) — respects the SFX toggle, unlike raw AudioSource.PlayClipAtPoint.</summary>
+    /// <summary>
+    /// Positional one-off SFX (explosions, etc.) — respects the SFX toggle, unlike raw
+    /// AudioSource.PlayClipAtPoint. Built manually (not via PlayClipAtPoint) because that
+    /// method hardcodes minDistance=1/maxDistance=500 with Logarithmic rolloff, which is
+    /// far too tight for this game's scale — the follow camera already sits ~12 units
+    /// from the player, so anything thrown/exploding even a short distance further out
+    /// gets attenuated to near-silence before it reaches the listener.
+    /// </summary>
     public void PlaySfxAtPoint(AudioClip clip, Vector3 position, float volume = 1f)
     {
         if (!SfxEnabled || clip == null)
@@ -165,7 +172,19 @@ public class AudioManager : MonoBehaviour
             return;
         }
 
-        AudioSource.PlayClipAtPoint(clip, position, volume);
+        GameObject tempAudioObject = new GameObject("PositionalSfx");
+        tempAudioObject.transform.position = position;
+
+        AudioSource tempSource = tempAudioObject.AddComponent<AudioSource>();
+        tempSource.clip = clip;
+        tempSource.volume = volume;
+        tempSource.spatialBlend = 1f;
+        tempSource.rolloffMode = AudioRolloffMode.Linear;
+        tempSource.minDistance = 10f;
+        tempSource.maxDistance = 60f;
+        tempSource.Play();
+
+        Destroy(tempAudioObject, clip.length);
     }
 
     private void OnDestroy()

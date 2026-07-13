@@ -316,7 +316,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   explosionVfxPrefab: {fileID: 100008, guid: fafeb973cad62304ba2abdc5dfafbf8f, type: 3}
   explosionVfxDestroyDelay: 5
-  explosionSfx: {fileID: 0}
+  explosionSfx: {fileID: 8300000, guid: 286af2f903ac5994f9fc8d025d26358d, type: 3}
   explosionSfxVolume: 1
   damagePlayer: 0
   playerLayer:

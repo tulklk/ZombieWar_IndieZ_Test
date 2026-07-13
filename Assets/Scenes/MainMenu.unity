@@ -3980,6 +3980,8 @@ MonoBehaviour:
   enableLevelLocking: 0
   lockedIcon: {fileID: 21300000, guid: 46ec3bd906c311a4baa5aca1afa09cb3, type: 3}
   defaultUnlockedLevel: 1
+  playCutSceneBeforeLevel1: 1
+  cutSceneName: CutScene
 --- !u!4 &1427943567
 Transform:
   m_ObjectHideFlags: 0

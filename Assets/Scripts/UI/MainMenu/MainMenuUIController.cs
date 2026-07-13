@@ -58,6 +58,11 @@ public class MainMenuUIController : MonoBehaviour
     [SerializeField] private Sprite lockedIcon;
     [SerializeField] private int defaultUnlockedLevel = 1;
 
+    [Header("Cut Scene (optional)")]
+    [Tooltip("Plays CutScene before Level1 specifically (the story intro) — other levels are unaffected.")]
+    [SerializeField] private bool playCutSceneBeforeLevel1 = true;
+    [SerializeField] private string cutSceneName = "CutScene";
+
     private RectTransform mainButtonsRect;
     private Vector2 levelSelectHomePosition;
     private Tween levelSelectTween;
@@ -445,6 +450,23 @@ public class MainMenuUIController : MonoBehaviour
         isSceneLoading = true;
         SetMainButtonsInteractable(false);
         SetLevelButtonsInteractable(false);
+
+        bool isLevel1 = levelSceneNames != null && levelSceneNames.Length > 0 && sceneName == levelSceneNames[0];
+
+        if (playCutSceneBeforeLevel1 && isLevel1)
+        {
+            // Routed through LoadingScene on the way to CutScene too (not just CutScene ->
+            // Level1) so both hops look like the same "loading data" screen: Level1Button ->
+            // LoadingScene -> CutScene -> LoadingScene -> Level1.
+            if (Application.CanStreamedLevelBeLoaded(cutSceneName) && Application.CanStreamedLevelBeLoaded(loadingSceneName))
+            {
+                SceneLoadData.NextSceneName = cutSceneName;
+                SceneManager.LoadSceneAsync(loadingSceneName);
+                return;
+            }
+
+            Debug.LogError($"[MainMenuUIController] CutScene scene '{cutSceneName}' or LoadingScene '{loadingSceneName}' is not included in Build Settings — loading '{sceneName}' directly instead.");
+        }
 
         if (useLoadingScene)
         {

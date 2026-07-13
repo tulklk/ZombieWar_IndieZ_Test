@@ -22,16 +22,16 @@ public static class LateAfternoonLightingSetup
     private static readonly Color SunColor = new Color32(255, 180, 106, 255);
     private static readonly Color FogColor = new Color32(38, 49, 61, 255);
 
-    private const float SkyboxExposure = 0.92f;
+    private const float SkyboxExposure = 0.62f;
     private static readonly Vector3 SunEulerAngles = new Vector3(18f, -35f, 0f);
-    private const float SunIntensity = 1.05f;
+    private const float SunIntensity = 0.72f;
     private const float SunIndirectMultiplier = 0.75f;
     private const float SunShadowStrength = 0.78f;
     private const float SunShadowBias = 0.05f;
     private const float SunShadowNormalBias = 0.4f;
     private const float SunShadowNearPlane = 0.2f;
-    private const float AmbientIntensity = 0.95f;
-    private const float ReflectionIntensity = 0.6f;
+    private const float AmbientIntensity = 0.62f;
+    private const float ReflectionIntensity = 0.4f;
     private const float FogDensity = 0.006f;
 
     [MenuItem("Tools/Zombie War/Apply Late Afternoon Lighting")]
@@ -67,9 +67,22 @@ public static class LateAfternoonLightingSetup
         ApplyFog();
 
         DynamicGI.UpdateEnvironment();
+
+        // DynamicGI.UpdateEnvironment() only refreshes the live in-memory ambient/reflection
+        // data for this Editor session — reopening the scene later can still show a stale
+        // cached look for a moment before it catches up. A full bake writes the environment
+        // lighting (ambient probe + reflection cubemap) to disk so it's correct immediately
+        // every time this scene is opened, not just right after this tool runs.
+        bool bakeSucceeded = Lightmapping.Bake();
+
+        if (!bakeSucceeded)
+        {
+            Debug.LogWarning("[LateAfternoonLightingSetup] Lightmapping.Bake() did not complete successfully — you may need to run Window > Rendering > Lighting > Generate Lighting manually.");
+        }
+
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
 
-        Debug.Log("[LateAfternoonLightingSetup] Late Afternoon lighting applied. Review it in Game View / Device Simulator, then save the scene (Ctrl+S) yourself when you're happy with it.");
+        Debug.Log("[LateAfternoonLightingSetup] Late Afternoon lighting applied and baked. Review it in Game View / Device Simulator, then save the scene (Ctrl+S) yourself when you're happy with it.");
     }
 
     private static Light FindMainDirectionalLight()

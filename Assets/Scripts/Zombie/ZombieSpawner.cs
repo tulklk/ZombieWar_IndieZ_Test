@@ -48,9 +48,7 @@ public class ZombieSpawner : MonoBehaviour
             return;
         }
 
-        int aliveZombies = GameObject.FindGameObjectsWithTag("Zombie").Length;
-
-        if (aliveZombies >= maxZombiesAlive)
+        if (ZombieHealth.ActiveCount >= maxZombiesAlive)
         {
             return;
         }

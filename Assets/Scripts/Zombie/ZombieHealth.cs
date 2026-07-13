@@ -37,13 +37,24 @@ public class ZombieHealth : MonoBehaviour
 
     private Color[] originalColors;
     private bool isDead;
+    private bool countedAsActive;
+    private MaterialPropertyBlock propertyBlock;
 
     private static readonly int DieBackHash = Animator.StringToHash("DieBack");
     private static readonly int DieForwardHash = Animator.StringToHash("DieForward");
+    private static readonly int ColorPropertyId = Shader.PropertyToID("_Color");
+
+    /// <summary>
+    /// Live zombie count, kept in sync from Awake/OnDestroy instead of scanning the scene
+    /// with GameObject.FindGameObjectsWithTag("Zombie") every spawn attempt.
+    /// </summary>
+    public static int ActiveCount { get; private set; }
 
     private void Awake()
     {
         currentHealth = maxHealth;
+        ActiveCount++;
+        countedAsActive = true;
 
         if (animator == null)
         {
@@ -120,12 +131,11 @@ public class ZombieHealth : MonoBehaviour
     {
         if (directionalSplatPrefab != null)
         {
-            ParticleSystem directionalSplat = Instantiate(
+            EffectPoolManager.Instance.Spawn(
                 directionalSplatPrefab,
                 hitPoint + hitNormal * SurfaceOffset,
-                Quaternion.LookRotation(hitNormal));
-
-            Destroy(directionalSplat.gameObject, BloodVfxDestroyDelay);
+                Quaternion.LookRotation(hitNormal),
+                BloodVfxDestroyDelay);
         }
 
         SpawnFloorSplat(hitPoint);
@@ -151,11 +161,10 @@ public class ZombieHealth : MonoBehaviour
             floorPosition.y = transform.position.y;
         }
 
-        ParticleSystem floorSplat = Instantiate(floorSplatPrefab, hitPoint, Quaternion.identity);
+        ParticleSystem floorSplat = EffectPoolManager.Instance.Spawn(
+            floorSplatPrefab, hitPoint, Quaternion.identity, BloodVfxDestroyDelay);
 
         StartCoroutine(FlyFloorSplatToGround(floorSplat.transform, hitPoint, floorPosition + floorNormal * SurfaceOffset));
-
-        Destroy(floorSplat.gameObject, BloodVfxDestroyDelay);
     }
 
     private IEnumerator FlyFloorSplatToGround(Transform splatTransform, Vector3 startPosition, Vector3 endPosition)
@@ -286,7 +295,11 @@ public class ZombieHealth : MonoBehaviour
         {
             if (renderers[i] != null)
             {
-                originalColors[i] = renderers[i].material.color;
+                // sharedMaterial (not .material) so reading the starting color doesn't
+                // itself clone a per-renderer material instance.
+                originalColors[i] = renderers[i].sharedMaterial != null
+                    ? renderers[i].sharedMaterial.color
+                    : Color.white;
             }
         }
     }
@@ -303,7 +316,7 @@ public class ZombieHealth : MonoBehaviour
         // Permanently update the cached "original" color so this part stays blood-stained
         // even after the next whole-body flash reverts everything back to originalColors.
         originalColors[hitIndex] = bloodStainColor;
-        renderers[hitIndex].material.color = bloodStainColor;
+        SetRendererColor(renderers[hitIndex], bloodStainColor);
     }
 
     private IEnumerator FlashHitEffect()
@@ -312,7 +325,7 @@ public class ZombieHealth : MonoBehaviour
         {
             if (renderers[i] != null)
             {
-                renderers[i].material.color = hitColor;
+                SetRendererColor(renderers[i], hitColor);
             }
         }
 
@@ -327,9 +340,19 @@ public class ZombieHealth : MonoBehaviour
         {
             if (renderers[i] != null)
             {
-                renderers[i].material.color = originalColors[i];
+                SetRendererColor(renderers[i], originalColors[i]);
             }
         }
+    }
+
+    // MaterialPropertyBlock overrides the color per-renderer at draw time without cloning
+    // the shared Material — keeps GPU instancing/batching intact across many zombie hits.
+    private void SetRendererColor(Renderer renderer, Color color)
+    {
+        propertyBlock ??= new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(propertyBlock);
+        propertyBlock.SetColor(ColorPropertyId, color);
+        renderer.SetPropertyBlock(propertyBlock);
     }
 
     private int FindClosestRendererIndex(Vector3 hitPoint)
@@ -393,5 +416,14 @@ public class ZombieHealth : MonoBehaviour
         Debug.Log("Zombie died");
 
         Destroy(gameObject, destroyDelay);
+    }
+
+    private void OnDestroy()
+    {
+        if (countedAsActive)
+        {
+            ActiveCount--;
+            countedAsActive = false;
+        }
     }
 }

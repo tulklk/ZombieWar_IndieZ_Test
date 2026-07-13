@@ -107,6 +107,7 @@ MonoBehaviour:
   attackCooldown: 1.2
   damage: 10
   animator: {fileID: 8140786597563828410}
+  attackSfx: {fileID: 8300000, guid: 24406008f368476428336d342c32bdf6, type: 3}
 --- !u!114 &5657166053841962114
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -36,8 +36,25 @@ public class ZombieAI : MonoBehaviour
     [SerializeField] protected float attackCooldown = 1.2f;
     [SerializeField] protected int damage = 10;
 
+    [Header("AI Performance")]
+    [Tooltip("How often (seconds) detection + NavMesh destination refresh while near the player.")]
+    [SerializeField] protected float nearTickInterval = 0.2f;
+    [Tooltip("How often (seconds) detection + NavMesh destination refresh while far from the player.")]
+    [SerializeField] protected float farTickInterval = 0.7f;
+    [Tooltip("Distance under which the faster (near) tick interval is used.")]
+    [SerializeField] protected float nearDistanceThreshold = 10f;
+
     [Header("Animation")]
     [SerializeField] protected Animator animator;
+
+    [Header("Audio")]
+    [Tooltip("Played once, positionally, the moment this zombie spots the player (not on every attack).")]
+    [SerializeField] protected AudioClip attackSfx;
+    [Tooltip("Auto-added if left empty. 3D-spatialized so the sound fades out with distance.")]
+    [SerializeField] protected AudioSource audioSource;
+
+    private const float AlertSfxMinDistance = 3f;
+    private const float AlertSfxMaxDistance = 20f;
 
     protected NavMeshAgent agent;
     protected PlayerHealth playerHealth;
@@ -48,6 +65,8 @@ public class ZombieAI : MonoBehaviour
     private float currentIdleDuration;
     private float chaseTimer;
     private float lastAttackTime;
+    private float nextAiTick;
+    private bool hasAlertedPlayer;
 
     private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
     protected static readonly int AttackHash = Animator.StringToHash("Attack");
@@ -61,7 +80,28 @@ public class ZombieAI : MonoBehaviour
             animator = GetComponent<Animator>();
         }
 
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+        }
+
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        audioSource.playOnAwake = false;
+        audioSource.loop = false;
+        audioSource.spatialBlend = 1f;
+        audioSource.rolloffMode = AudioRolloffMode.Linear;
+        audioSource.minDistance = AlertSfxMinDistance;
+        audioSource.maxDistance = AlertSfxMaxDistance;
+
         spawnPosition = transform.position;
+
+        // Stagger the first tick so zombies spawned in the same frame don't all
+        // re-check detection/destination on the same frame afterward either.
+        nextAiTick = Time.time + Random.Range(0f, nearTickInterval);
     }
 
     protected virtual void Start()
@@ -91,22 +131,9 @@ public class ZombieAI : MonoBehaviour
             return;
         }
 
-        float distanceToPlayer = GetDistanceToPlayer();
-
-        if (target != null && distanceToPlayer <= detectionRange)
+        if (Time.time >= nextAiTick)
         {
-            if (distanceToPlayer <= attackRange)
-            {
-                EnterAttackState();
-            }
-            else
-            {
-                EnterChaseState();
-            }
-        }
-        else if (currentState == ZombieState.Chase && distanceToPlayer > loseTargetRange)
-        {
-            EnterIdleState();
+            RunAiTick();
         }
 
         switch (currentState)
@@ -129,6 +156,39 @@ public class ZombieAI : MonoBehaviour
         }
 
         UpdateMoveAnimation();
+    }
+
+    /// <summary>
+    /// Detection and NavMesh destination refresh run on a randomized interval instead of
+    /// every frame — SetDestination triggers a NavMesh path query, and re-checking a few
+    /// times a second reads as instant in a top-down shooter while cutting most of the cost.
+    /// </summary>
+    private void RunAiTick()
+    {
+        float distanceToPlayer = GetDistanceToPlayer();
+        float interval = distanceToPlayer <= nearDistanceThreshold ? nearTickInterval : farTickInterval;
+        nextAiTick = Time.time + interval + Random.Range(-0.05f, 0.05f);
+
+        if (target != null && distanceToPlayer <= detectionRange)
+        {
+            if (distanceToPlayer <= attackRange)
+            {
+                EnterAttackState();
+            }
+            else
+            {
+                EnterChaseState();
+            }
+        }
+        else if (currentState == ZombieState.Chase && distanceToPlayer > loseTargetRange)
+        {
+            EnterIdleState();
+        }
+
+        if (currentState == ZombieState.Chase && target != null && IsAgentUsable)
+        {
+            agent.SetDestination(target.position);
+        }
     }
 
     /// <summary>
@@ -156,6 +216,7 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Idle;
+        hasAlertedPlayer = false;
 
         if (IsAgentUsable)
         {
@@ -237,6 +298,7 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Chase;
+        PlayAlertSfxOnce();
 
         if (IsAgentUsable)
         {
@@ -259,8 +321,9 @@ public class ZombieAI : MonoBehaviour
             return;
         }
 
+        // Destination itself is refreshed by RunAiTick(), not every frame — this only
+        // keeps the speed ramp-up smooth while already-set path is being followed.
         agent.speed = CalculateChaseSpeed(chaseTimer);
-        agent.SetDestination(target.position);
     }
 
     protected virtual float CalculateChaseSpeed(float elapsedChaseTime)
@@ -277,6 +340,7 @@ public class ZombieAI : MonoBehaviour
         }
 
         currentState = ZombieState.Attack;
+        PlayAlertSfxOnce();
 
         if (IsAgentUsable)
         {
@@ -293,9 +357,10 @@ public class ZombieAI : MonoBehaviour
             return;
         }
 
-        float distanceToPlayer = GetDistanceToPlayer();
+        float maxAttackDistance = attackRange + 0.3f;
+        float sqrDistanceToPlayer = (target.position - transform.position).sqrMagnitude;
 
-        if (distanceToPlayer > attackRange + 0.3f)
+        if (sqrDistanceToPlayer > maxAttackDistance * maxAttackDistance)
         {
             EnterChaseState();
             return;
@@ -323,6 +388,28 @@ public class ZombieAI : MonoBehaviour
         }
 
         Debug.Log(GetType().Name + " attacked Player");
+    }
+
+    /// <summary>
+    /// Plays attackSfx once per detection episode, positioned on this zombie so it
+    /// naturally gets louder as the player approaches and fades out moving away —
+    /// reset by EnterIdleState() once the zombie loses the player again.
+    /// </summary>
+    protected void PlayAlertSfxOnce()
+    {
+        if (hasAlertedPlayer)
+        {
+            return;
+        }
+
+        hasAlertedPlayer = true;
+
+        bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
+
+        if (attackSfx != null && audioSource != null && sfxEnabled)
+        {
+            audioSource.PlayOneShot(attackSfx);
+        }
     }
 
     protected void LookAtTarget()

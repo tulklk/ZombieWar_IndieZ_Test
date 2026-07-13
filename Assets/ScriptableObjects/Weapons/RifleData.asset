@@ -32,6 +32,7 @@ MonoBehaviour:
   muzzleFlashLocalEulerAngles: {x: 5.233, y: 4.511, z: 19.914}
   muzzleFlashScale: {x: 0.5, y: 0.5, z: 0.5}
   hitEffectPrefab: {fileID: 0}
+  fireSfx: {fileID: 8300000, guid: e0cef4faa7041db41a338d79a0b49a87, type: 3}
   weaponModelPrefab: {fileID: 919132149155446097, guid: 33269b2b610f4c245a712795c1927939, type: 3}
   modelLocalScale: {x: 0.2, y: 0.2, z: 0.2}
   handLocalPosition: {x: 0.146, y: 0.026, z: -0.137}

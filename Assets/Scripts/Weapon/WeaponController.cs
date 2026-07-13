@@ -24,6 +24,16 @@ public class WeaponController : MonoBehaviour
     [Header("Reload")]
     [SerializeField] private float reloadDuration = 1.5f;
 
+    [Header("Audio")]
+    [Tooltip("Auto-added if left empty. Dedicated so each shot restarts (cuts off) the previous one instead of piling up at high fire rates.")]
+    [SerializeField] private AudioSource fireAudioSource;
+    [Tooltip("Hard cap on how long a single shot's SFX is audible, regardless of the source clip's own length — keeps every shot a short, punchy burst instead of playing a long clip out in full.")]
+    [SerializeField] private float fireSfxMaxDuration = 0.25f;
+    [Tooltip("Played once whenever a reload starts, shared across all weapons.")]
+    [SerializeField] private AudioClip reloadSfx;
+
+    private Coroutine fireSfxStopCoroutine;
+
     private float nextFireTime;
     private int[] currentMagazineAmmo;
     private int[] currentReserveAmmo;
@@ -35,7 +45,7 @@ public class WeaponController : MonoBehaviour
     private bool isActionLocked;
     private bool isReloading;
     private Coroutine reloadCoroutine;
-    private readonly List<GameObject> activeMuzzleFlashes = new List<GameObject>();
+    private readonly List<ParticleSystem> activeMuzzleFlashes = new List<ParticleSystem>();
     private LineRenderer laserSightLine;
 
     public bool IsAiming => isAiming;
@@ -70,11 +80,71 @@ public class WeaponController : MonoBehaviour
         }
     }
 
+    private void Awake()
+    {
+        if (fireAudioSource == null)
+        {
+            fireAudioSource = GetComponent<AudioSource>();
+        }
+
+        if (fireAudioSource == null)
+        {
+            fireAudioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        fireAudioSource.playOnAwake = false;
+        fireAudioSource.loop = false;
+        fireAudioSource.spatialBlend = 0f;
+    }
+
     private void Start()
     {
         InitializeAmmo();
         SpawnWeaponModels();
         UpdateWeaponUI();
+    }
+
+    /// <summary>
+    /// Restarts the same AudioSource every shot instead of PlayOneShot — at high fire
+    /// rates PlayOneShot stacks multiple full-length copies on top of each other and
+    /// the result smears into one long noise. Restarting cuts the previous shot's tail
+    /// immediately, so each trigger pull reads as one short, punchy report.
+    /// Also hard-stopped after fireSfxMaxDuration regardless of the clip's own length —
+    /// some source clips (e.g. the shotgun's) contain more than one bang baked into the
+    /// same file, which would otherwise play out in full on every slow-fire-rate shot.
+    /// </summary>
+    private void PlayFireSfx()
+    {
+        if (CurrentWeapon.fireSfx == null || fireAudioSource == null)
+        {
+            return;
+        }
+
+        bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
+
+        if (!sfxEnabled)
+        {
+            return;
+        }
+
+        if (fireSfxStopCoroutine != null)
+        {
+            StopCoroutine(fireSfxStopCoroutine);
+        }
+
+        fireAudioSource.Stop();
+        fireAudioSource.clip = CurrentWeapon.fireSfx;
+        fireAudioSource.time = 0f;
+        fireAudioSource.Play();
+
+        fireSfxStopCoroutine = StartCoroutine(StopFireSfxAfterDelay(fireSfxMaxDuration));
+    }
+
+    private IEnumerator StopFireSfxAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        fireAudioSource.Stop();
+        fireSfxStopCoroutine = null;
     }
 
     private void InitializeAmmo()
@@ -291,7 +361,11 @@ public class WeaponController : MonoBehaviour
         EquipWeaponVisual(currentWeaponIndex);
 
         animationController?.SetShooting(true);
-        TryShoot();
+
+        // Firing itself is driven entirely by the caller's per-frame hold loop (see
+        // FireButtonTest.Update) — calling TryShoot() here too used to fire an extra,
+        // immediate shot on top of that loop's own first tick, so a single tap/click
+        // (which routinely lasts longer than a fast weapon's fireRate) fired twice.
     }
 
     public void StopShooting()
@@ -316,11 +390,11 @@ public class WeaponController : MonoBehaviour
 
     private void StopAllMuzzleFlashes()
     {
-        foreach (GameObject muzzle in activeMuzzleFlashes)
+        foreach (ParticleSystem muzzle in activeMuzzleFlashes)
         {
             if (muzzle != null)
             {
-                Destroy(muzzle);
+                EffectPoolManager.Instance.ReleaseEarly(muzzle);
             }
         }
 
@@ -356,6 +430,7 @@ public class WeaponController : MonoBehaviour
         UpdateWeaponUI();
 
         animationController?.PlayShootShot();
+        PlayFireSfx();
 
         if (CurrentWeapon.isShotgun)
         {
@@ -435,7 +510,9 @@ public class WeaponController : MonoBehaviour
 
             if (CurrentWeapon.hitEffectPrefab != null)
             {
-                Instantiate(CurrentWeapon.hitEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
+                const float hitEffectLifetime = 2f;
+                EffectPoolManager.Instance.Spawn(
+                    CurrentWeapon.hitEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal), hitEffectLifetime);
             }
         }
     }
@@ -531,30 +608,27 @@ public class WeaponController : MonoBehaviour
         }
 
         ParticleSystem muzzle;
+        const float muzzleFlashLifetime = 0.15f;
 
         if (CurrentFirePoint != null)
         {
-            muzzle = Instantiate(CurrentWeapon.muzzleFlashPrefab, CurrentFirePoint);
-            muzzle.transform.localPosition = Vector3.zero;
-            muzzle.transform.localEulerAngles = Vector3.zero;
+            muzzle = EffectPoolManager.Instance.SpawnLocal(
+                CurrentWeapon.muzzleFlashPrefab, CurrentFirePoint, Vector3.zero, Vector3.zero, muzzleFlashLifetime);
         }
         else
         {
-            muzzle = Instantiate(CurrentWeapon.muzzleFlashPrefab, handSocket);
-            muzzle.transform.localPosition = CurrentWeapon.muzzleFlashLocalPosition;
-            muzzle.transform.localEulerAngles = CurrentWeapon.muzzleFlashLocalEulerAngles;
+            muzzle = EffectPoolManager.Instance.SpawnLocal(
+                CurrentWeapon.muzzleFlashPrefab, handSocket,
+                CurrentWeapon.muzzleFlashLocalPosition, CurrentWeapon.muzzleFlashLocalEulerAngles, muzzleFlashLifetime);
         }
 
         muzzle.transform.localScale = CompensateForParentScale(CurrentWeapon.muzzleFlashScale, muzzle.transform.parent);
 
         ParticleSystem.MainModule main = muzzle.main;
         main.loop = false;
-        muzzle.Play(true);
 
         activeMuzzleFlashes.RemoveAll(item => item == null);
-        activeMuzzleFlashes.Add(muzzle.gameObject);
-
-        Destroy(muzzle.gameObject, 0.15f);
+        activeMuzzleFlashes.Add(muzzle);
     }
 
     private IEnumerator PlayRecoil()
@@ -638,8 +712,24 @@ public class WeaponController : MonoBehaviour
         EquipWeaponVisual(index);
 
         animationController?.PlayReload();
+        PlayReloadSfx();
 
         reloadCoroutine = StartCoroutine(ReloadRoutine(index));
+    }
+
+    private void PlayReloadSfx()
+    {
+        if (reloadSfx == null || fireAudioSource == null)
+        {
+            return;
+        }
+
+        bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
+
+        if (sfxEnabled)
+        {
+            fireAudioSource.PlayOneShot(reloadSfx);
+        }
     }
 
     private IEnumerator ReloadRoutine(int weaponIndex)

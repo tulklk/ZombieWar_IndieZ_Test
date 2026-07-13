@@ -103,7 +103,14 @@ public class BombProjectile : MonoBehaviour
 
         if (explosionSfx != null)
         {
-            AudioSource.PlayClipAtPoint(explosionSfx, transform.position, explosionSfxVolume);
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySfxAtPoint(explosionSfx, transform.position, explosionSfxVolume);
+            }
+            else
+            {
+                AudioSource.PlayClipAtPoint(explosionSfx, transform.position, explosionSfxVolume);
+            }
         }
 
         onExplode?.Invoke();

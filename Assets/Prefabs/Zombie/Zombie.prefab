@@ -3099,7 +3099,7 @@ NavMeshAgent:
   m_Height: 2
   m_BaseOffset: 0
   m_WalkableMask: 4294967295
-  m_ObstacleAvoidanceType: 4
+  m_ObstacleAvoidanceType: 1
 --- !u!114 &5331768356952842362
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3126,6 +3126,7 @@ MonoBehaviour:
   attackCooldown: 1.2
   damage: 10
   animator: {fileID: 1688524461984924413}
+  attackSfx: {fileID: 8300000, guid: 692c928cabc2a53419d295bc53a935bf, type: 3}
 --- !u!114 &2938090121229229115
 MonoBehaviour:
   m_ObjectHideFlags: 0

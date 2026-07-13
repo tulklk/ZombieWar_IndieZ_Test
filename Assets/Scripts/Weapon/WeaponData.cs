@@ -35,6 +35,9 @@ public class WeaponData : ScriptableObject
     public Vector3 muzzleFlashScale = Vector3.one;
     public ParticleSystem hitEffectPrefab;
 
+    [Header("Audio")]
+    public AudioClip fireSfx;
+
     [Header("Weapon Model")]
     public GameObject weaponModelPrefab;
     public Vector3 modelLocalScale = Vector3.one;

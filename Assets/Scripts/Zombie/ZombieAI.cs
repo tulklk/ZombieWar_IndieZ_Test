@@ -450,6 +450,17 @@ public class ZombieAI : MonoBehaviour
         animator.SetFloat(MoveSpeedHash, normalizedSpeed);
     }
 
+    /// <summary>
+    /// Lets a spawner (e.g. ZombieWaveManager) assign the target explicitly right after
+    /// Instantiate, so Start()'s own GameObject.FindGameObjectWithTag("Player") fallback
+    /// (which only runs when target is still null) never fires.
+    /// </summary>
+    public void SetTarget(Transform newTarget)
+    {
+        target = newTarget;
+        playerHealth = newTarget != null ? newTarget.GetComponent<PlayerHealth>() : null;
+    }
+
     public virtual void SetDead()
     {
         currentState = ZombieState.Dead;

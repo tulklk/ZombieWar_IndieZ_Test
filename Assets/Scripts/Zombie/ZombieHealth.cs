@@ -50,6 +50,9 @@ public class ZombieHealth : MonoBehaviour
     /// </summary>
     public static int ActiveCount { get; private set; }
 
+    /// <summary>Fires exactly once, from Die(), before the GameObject is scheduled for destruction — subscribers (e.g. ZombieWaveManager) should unsubscribe once handled.</summary>
+    public event System.Action<ZombieHealth> Died;
+
     private void Awake()
     {
         currentHealth = maxHealth;
@@ -383,6 +386,7 @@ public class ZombieHealth : MonoBehaviour
     private void Die()
     {
         isDead = true;
+        Died?.Invoke(this);
 
         if (healthBarRoot != null)
         {

@@ -2,11 +2,15 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Staggered reveal for a result panel's title + supporting elements (buttons, a trophy
+/// Sequential reveal for a result panel's title + supporting elements (buttons, a trophy
 /// icon, etc.): the title either punches in from an oversized scale (stamp effect, e.g.
 /// LosePanel's bloody GAME OVER art) or slides straight down from above (e.g. WinPanel's
-/// VICTORY banner), then each staggerElement slides up + fades in one after another. Runs
-/// on unscaled time so it still plays out even though the panel is shown right as gameplay
+/// VICTORY banner), then each staggerElement slides up + fades in one at a time, in array
+/// order (e.g. Cup, then RestartBtn, then NextBtn, then MenuBtn) — each one waits for the
+/// previous to fully finish before starting, so the reveal reads as one clear beat at a
+/// time instead of overlapping. IntroCompleted fires once everything has finished, so
+/// LevelResultManager can chain something afterward (e.g. the stat count-up). Runs on
+/// unscaled time so it still plays out even though the panel is shown right as gameplay
 /// pauses (Time.timeScale = 0). Purely optional — LevelResultManager just no-ops if a given
 /// panel doesn't have this component.
 /// </summary>
@@ -19,7 +23,7 @@ public class PanelIntroAnimator : MonoBehaviour
     }
 
     [SerializeField] private RectTransform titleRect;
-    [Tooltip("Any RectTransform to reveal in a staggered sequence after the title — buttons, a trophy icon, etc.")]
+    [Tooltip("Any RectTransform to reveal one at a time, in order, after the title — buttons, a trophy icon, etc.")]
     [SerializeField] private RectTransform[] staggerElements;
 
     [Header("Title")]
@@ -28,15 +32,19 @@ public class PanelIntroAnimator : MonoBehaviour
     [SerializeField] private float titleStartScale = 1.6f;
     [Tooltip("SlideFromTop only: how far above its resting position the title starts.")]
     [SerializeField] private float titleSlideDistance = 250f;
-    [SerializeField] private float titleDuration = 0.4f;
+    [SerializeField] private float titleDuration = 0.6f;
 
-    [Header("Stagger Elements (slide up + fade)")]
+    [Header("Stagger Elements (slide up + fade, one at a time)")]
     [SerializeField] private float elementSlideDistance = 60f;
-    [SerializeField] private float elementDuration = 0.3f;
-    [SerializeField] private float staggerDelay = 0.12f;
-    [SerializeField] private float elementsStartDelay = 0.15f;
+    [SerializeField] private float elementDuration = 0.4f;
+    [Tooltip("Pause after each element finishes before the next one starts.")]
+    [SerializeField] private float staggerDelay = 0.2f;
+    [SerializeField] private float elementsStartDelay = 0.25f;
 
     private Coroutine introRoutine;
+
+    /// <summary>Fires once the whole sequence (title + every stagger element) has finished playing.</summary>
+    public event System.Action IntroCompleted;
 
     public void PlayIntro()
     {
@@ -73,12 +81,16 @@ public class PanelIntroAnimator : MonoBehaviour
                     continue;
                 }
 
-                StartCoroutine(SlideAndFadeIn(staggerElements[i], elementSlideDistance, elementDuration, fromAbove: false));
+                // Fully sequential (yielded, not fire-and-forget) — each element finishes
+                // its own slide+fade before the next one begins, so the reveal reads as one
+                // beat at a time (Cup, then each button) rather than overlapping.
+                yield return SlideAndFadeIn(staggerElements[i], elementSlideDistance, elementDuration, fromAbove: false);
                 yield return new WaitForSecondsRealtime(staggerDelay);
             }
         }
 
         introRoutine = null;
+        IntroCompleted?.Invoke();
     }
 
     private static IEnumerator PunchScale(RectTransform rect, float fromScale, float duration)

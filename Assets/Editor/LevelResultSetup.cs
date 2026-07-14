@@ -122,6 +122,11 @@ public static class LevelResultSetup
         SetReference(serializedManager, "losePanel", losePanel);
         SetReference(serializedManager, "loseCanvasGroup", loseCanvasGroup);
 
+        // Same reasoning as PanelIntroAnimator's pacing fields above — explicitly requested
+        // ("run slower"), safe to always reapply.
+        SetFloatProperty(serializedManager, "countUpDuration", 1f);
+        SetFloatProperty(serializedManager, "countUpGap", 0.2f);
+
         // Only overwritten when freshly built this run — an already-configured panel's
         // existing winTimeText/loseTimeText wiring (however the user has since renamed or
         // restructured that child) is left exactly as it was.
@@ -267,7 +272,25 @@ public static class LevelResultSetup
             }
         }
 
+        // Explicit, always-reapplied pacing values — requested directly ("run the
+        // animations slower"), not a per-panel creative choice like the durations on other
+        // tool-built elements, so it's safe to push these every run.
+        SetFloatProperty(serializedAnimator, "titleDuration", 0.6f);
+        SetFloatProperty(serializedAnimator, "elementDuration", 0.4f);
+        SetFloatProperty(serializedAnimator, "staggerDelay", 0.2f);
+        SetFloatProperty(serializedAnimator, "elementsStartDelay", 0.25f);
+
         serializedAnimator.ApplyModifiedProperties();
+    }
+
+    private static void SetFloatProperty(SerializedObject serializedObject, string propertyName, float value)
+    {
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+
+        if (property != null)
+        {
+            property.floatValue = value;
+        }
     }
 
     private static TMP_Text FindChildTmpText(GameObject panel, string name)

@@ -25,8 +25,10 @@ public class LevelResultManager : MonoBehaviour
     [SerializeField] private TMP_Text winTimeText;
     [SerializeField] private TMP_Text killCountText;
     [SerializeField] private TMP_Text scoreText;
-    [Tooltip("How long Time/Kills/Score count up from 0 to their final value on WinPanel.")]
-    [SerializeField] private float countUpDuration = 1.2f;
+    [Tooltip("How long each of Kills/Time/Score takes to count up from 0 to its final value — they count up one after another, not all at once.")]
+    [SerializeField] private float countUpDuration = 1f;
+    [Tooltip("Pause between each stat finishing its count-up and the next one starting.")]
+    [SerializeField] private float countUpGap = 0.2f;
 
     [Header("Lose")]
     [SerializeField] private GameObject losePanel;
@@ -132,13 +134,21 @@ public class LevelResultManager : MonoBehaviour
 
         isRunning = false;
 
-        StartCoroutine(CountUpTime(winTimeText, elapsedTime, countUpDuration));
-        StartCoroutine(CountUpInt(killCountText, totalKills, countUpDuration));
-        StartCoroutine(CountUpInt(scoreText, totalScore, countUpDuration));
-
-        ShowPanelAnimated(winPanel, winCanvasGroup);
+        ShowPanelAnimated(winPanel, winCanvasGroup, onIntroComplete: () => StartCoroutine(PlayWinStatsSequence()));
 
         Time.timeScale = 0f;
+    }
+
+    /// <summary>Runs only after WinPanel's intro (Victory, then Cup, then buttons) has fully played — Kills, then Time, then Score count up one at a time, never simultaneously.</summary>
+    private IEnumerator PlayWinStatsSequence()
+    {
+        yield return CountUpInt(killCountText, totalKills, countUpDuration);
+        yield return new WaitForSecondsRealtime(countUpGap);
+
+        yield return CountUpTime(winTimeText, elapsedTime, countUpDuration);
+        yield return new WaitForSecondsRealtime(countUpGap);
+
+        yield return CountUpInt(scoreText, totalScore, countUpDuration);
     }
 
     private static IEnumerator CountUpInt(TMP_Text text, int targetValue, float duration)
@@ -210,9 +220,12 @@ public class LevelResultManager : MonoBehaviour
     /// <summary>
     /// Fades + scale-pops the panel in instead of a hard SetActive pop. Runs on unscaled
     /// time so it still plays out visually even though Time.timeScale is set to 0 right
-    /// after this is called (the whole point of the pause).
+    /// after this is called (the whole point of the pause). If the panel has a
+    /// PanelIntroAnimator, onIntroComplete fires once its whole title+stagger sequence has
+    /// finished; with no PanelIntroAnimator, onIntroComplete fires immediately instead of
+    /// never firing at all.
     /// </summary>
-    private void ShowPanelAnimated(GameObject panel, CanvasGroup canvasGroup)
+    private void ShowPanelAnimated(GameObject panel, CanvasGroup canvasGroup, System.Action onIntroComplete = null)
     {
         if (panel == null)
         {
@@ -228,7 +241,26 @@ public class LevelResultManager : MonoBehaviour
         showRoutine = StartCoroutine(FadeInPanel(panel.transform as RectTransform, canvasGroup));
 
         PanelIntroAnimator introAnimator = panel.GetComponent<PanelIntroAnimator>();
-        introAnimator?.PlayIntro();
+
+        if (introAnimator != null)
+        {
+            if (onIntroComplete != null)
+            {
+                void HandleIntroCompleted()
+                {
+                    introAnimator.IntroCompleted -= HandleIntroCompleted;
+                    onIntroComplete();
+                }
+
+                introAnimator.IntroCompleted += HandleIntroCompleted;
+            }
+
+            introAnimator.PlayIntro();
+        }
+        else
+        {
+            onIntroComplete?.Invoke();
+        }
     }
 
     private IEnumerator FadeInPanel(RectTransform rect, CanvasGroup canvasGroup)

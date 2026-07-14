@@ -32,6 +32,10 @@ public class PlayerMovement : MonoBehaviour
 
     private const float Gravity = -20f;
     private const float MinMoveMagnitudeForFootsteps = 0.1f;
+    private const float MinMoveMagnitudeForIsMoving = 0.05f;
+
+    /// <summary>True while joystick/keyboard input is actually driving the character — e.g. WeaponController hides the laser sight while this is true.</summary>
+    public bool IsMoving { get; private set; }
 
     private void Awake()
     {
@@ -97,6 +101,8 @@ public class PlayerMovement : MonoBehaviour
         // split instead of speed ramping up evenly across the whole joystick range.
         float rawMagnitude = moveDirection.magnitude;
         float curvedMagnitude = Mathf.Pow(rawMagnitude, speedCurveExponent);
+
+        IsMoving = rawMagnitude > MinMoveMagnitudeForIsMoving;
 
         characterController.Move(moveDirection.normalized * curvedMagnitude * moveSpeed * Time.deltaTime);
 

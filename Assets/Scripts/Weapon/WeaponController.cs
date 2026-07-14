@@ -16,6 +16,8 @@ public class WeaponController : MonoBehaviour
     [SerializeField] private Transform handSocket;
     [SerializeField] private Transform backSocket;
     [SerializeField] private PlayerAnimationController animationController;
+    [Tooltip("Auto-found via GetComponent if left empty. Laser sight is hidden while this reports IsMoving.")]
+    [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private TMP_Text weaponNameText;
     [SerializeField] private TMP_Text bulletCountMaxText;
     [SerializeField] private TMP_Text bulletCountCurrentText;
@@ -82,6 +84,11 @@ public class WeaponController : MonoBehaviour
 
     private void Awake()
     {
+        if (playerMovement == null)
+        {
+            playerMovement = GetComponent<PlayerMovement>();
+        }
+
         if (fireAudioSource == null)
         {
             fireAudioSource = GetComponent<AudioSource>();
@@ -492,35 +499,72 @@ public class WeaponController : MonoBehaviour
     private void FireHitscan(Vector3 direction)
     {
         Vector3 muzzlePosition = GetMuzzlePosition();
+        int hitMask = ~(1 << gameObject.layer);
+
+        if (TryHitPointBlank(muzzlePosition, direction, hitMask))
+        {
+            return;
+        }
 
         // Start the sweep slightly behind the muzzle: SphereCast does not report a hit for
         // colliders that already overlap the sphere at the start of the sweep, so a Zombie
         // standing point-blank against the muzzle would otherwise be missed entirely.
         Vector3 castOrigin = muzzlePosition - direction * MuzzleBacktrack;
         float castDistance = CurrentWeapon.range + MuzzleBacktrack;
-        int hitMask = ~(1 << gameObject.layer);
 
         if (Physics.SphereCast(castOrigin, HitAssistRadius, direction, out RaycastHit hit, castDistance, hitMask))
         {
-            ZombieHealth zombieHealth = hit.collider.GetComponentInParent<ZombieHealth>();
+            ApplyHit(hit.collider, hit.point, hit.normal);
+        }
+    }
 
-            if (zombieHealth != null)
-            {
-                zombieHealth.TakeDamage(CurrentWeapon.damage, hit.point, hit.normal);
-            }
+    /// <summary>
+    /// SphereCast can't detect a collider that already overlaps the sweep's start sphere at
+    /// t=0 — a documented Unity limitation, not something the MuzzleBacktrack offset can work
+    /// around. ZombieAI only re-checks distance/attack-state on a 0.2-0.7s timer (RunAiTick),
+    /// so a fast zombie (ZombieRunner/ZombieTank) can keep closing between ticks and end up
+    /// flush against the muzzle before it stops to attack. This explicit overlap check right
+    /// at the muzzle catches that point-blank case the sweep structurally cannot.
+    /// </summary>
+    private bool TryHitPointBlank(Vector3 muzzlePosition, Vector3 direction, int hitMask)
+    {
+        Collider[] overlaps = Physics.OverlapSphere(muzzlePosition, HitAssistRadius, hitMask);
 
-            if (CurrentWeapon.hitEffectPrefab != null)
+        foreach (Collider overlapped in overlaps)
+        {
+            if (overlapped.GetComponentInParent<ZombieHealth>() != null)
             {
-                const float hitEffectLifetime = 2f;
-                EffectPoolManager.Instance.Spawn(
-                    CurrentWeapon.hitEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal), hitEffectLifetime);
+                Vector3 hitPoint = overlapped.ClosestPoint(muzzlePosition);
+                ApplyHit(overlapped, hitPoint, -direction);
+                return true;
             }
+        }
+
+        return false;
+    }
+
+    private void ApplyHit(Collider hitCollider, Vector3 hitPoint, Vector3 hitNormal)
+    {
+        ZombieHealth zombieHealth = hitCollider.GetComponentInParent<ZombieHealth>();
+
+        if (zombieHealth != null)
+        {
+            zombieHealth.TakeDamage(CurrentWeapon.damage, hitPoint, hitNormal);
+        }
+
+        if (CurrentWeapon.hitEffectPrefab != null)
+        {
+            const float hitEffectLifetime = 2f;
+            EffectPoolManager.Instance.Spawn(
+                CurrentWeapon.hitEffectPrefab, hitPoint, Quaternion.LookRotation(hitNormal), hitEffectLifetime);
         }
     }
 
     private void UpdateLaserSight()
     {
-        if (!isAiming || isReloading || CurrentWeapon == null || handSocket == null)
+        bool isMoving = playerMovement != null && playerMovement.IsMoving;
+
+        if (!isAiming || isReloading || isMoving || CurrentWeapon == null || handSocket == null)
         {
             if (laserSightLine != null)
             {
@@ -538,14 +582,33 @@ public class WeaponController : MonoBehaviour
         Vector3 muzzlePosition = GetMuzzlePosition();
         Vector3 direction = GetMuzzleForward();
         Vector3 endPoint = muzzlePosition + direction * CurrentWeapon.range;
-
-        Vector3 castOrigin = muzzlePosition - direction * MuzzleBacktrack;
-        float castDistance = CurrentWeapon.range + MuzzleBacktrack;
         int hitMask = ~(1 << gameObject.layer);
 
-        if (Physics.SphereCast(castOrigin, HitAssistRadius, direction, out RaycastHit hit, castDistance, hitMask))
+        Collider[] overlaps = Physics.OverlapSphere(muzzlePosition, HitAssistRadius, hitMask);
+        Collider pointBlankCollider = null;
+
+        foreach (Collider overlapped in overlaps)
         {
-            endPoint = hit.point;
+            if (overlapped.GetComponentInParent<ZombieHealth>() != null)
+            {
+                pointBlankCollider = overlapped;
+                break;
+            }
+        }
+
+        if (pointBlankCollider != null)
+        {
+            endPoint = pointBlankCollider.ClosestPoint(muzzlePosition);
+        }
+        else
+        {
+            Vector3 castOrigin = muzzlePosition - direction * MuzzleBacktrack;
+            float castDistance = CurrentWeapon.range + MuzzleBacktrack;
+
+            if (Physics.SphereCast(castOrigin, HitAssistRadius, direction, out RaycastHit hit, castDistance, hitMask))
+            {
+                endPoint = hit.point;
+            }
         }
 
         laserSightLine.enabled = true;

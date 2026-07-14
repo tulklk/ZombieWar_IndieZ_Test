@@ -21,6 +21,8 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private PlayerAnimationController animationController;
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private WeaponController weaponController;
+    [Tooltip("How long the Die animation (Z_FallingBack, ~1.4s) takes to play out — OnDied (which shows LosePanel) is delayed by this long so the panel doesn't pop up over the falling animation.")]
+    [SerializeField] private float deathAnimationDuration = 1.4f;
 
     private Color[] originalColors;
     private bool isDead;
@@ -37,6 +39,9 @@ public class PlayerHealth : MonoBehaviour
 
     /// <summary>Fired once per TakeDamage call (not on Heal) — one hit, one event.</summary>
     public event Action<int> OnDamaged;
+
+    /// <summary>Fired exactly once, from Die() — e.g. LevelResultManager shows LosePanel from this.</summary>
+    public event Action OnDied;
 
     private void Awake()
     {
@@ -177,5 +182,14 @@ public class PlayerHealth : MonoBehaviour
             weaponController.HideWeaponModels();
             weaponController.enabled = false;
         }
+
+        StartCoroutine(InvokeDiedAfterAnimation());
+    }
+
+    /// <summary>Waits out the Die animation (Z_FallingBack) before firing OnDied, so LosePanel doesn't pop up mid-fall.</summary>
+    private IEnumerator InvokeDiedAfterAnimation()
+    {
+        yield return new WaitForSeconds(deathAnimationDuration);
+        OnDied?.Invoke();
     }
 }

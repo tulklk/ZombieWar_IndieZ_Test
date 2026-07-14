@@ -16,7 +16,8 @@ using UnityEngine.UI;
 /// </summary>
 public class MainMenuUIController : MonoBehaviour
 {
-    private const string LevelUnlockedPrefKey = "ZombieWar.HighestUnlockedLevel";
+    /// <summary>Public so LevelResultManager (Level scenes, a different MonoBehaviour) can unlock the next level via the same PlayerPrefs key without duplicating the literal string.</summary>
+    public const string LevelUnlockedPrefKey = "ZombieWar.HighestUnlockedLevel";
 
     [Header("Main Menu")]
     [SerializeField] private GameObject mainButtonsRoot;
@@ -88,7 +89,20 @@ public class MainMenuUIController : MonoBehaviour
         ValidateReferences();
         WireButtons();
         ApplyLevelAvailability();
-        SetLevelSelectImmediate(open: false);
+
+        // Coming back here via LevelResultManager.GoToNextLevel() (WinPanel's Next button) —
+        // land straight on LevelSelectPanel (already showing the newly-unlocked level)
+        // instead of the plain main buttons.
+        if (SceneLoadData.OpenLevelSelectOnLoad)
+        {
+            SceneLoadData.OpenLevelSelectOnLoad = false;
+            SetLevelSelectImmediate(open: true);
+            SetMainButtonsInteractable(false);
+        }
+        else
+        {
+            SetLevelSelectImmediate(open: false);
+        }
     }
 
     private void ValidateReferences()

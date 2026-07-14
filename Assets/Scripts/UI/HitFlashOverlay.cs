@@ -61,6 +61,12 @@ public class HitFlashOverlay : MonoBehaviour
             }
         }
 
+        PlayFlash();
+    }
+
+    /// <summary>Triggers the same pulse used for a Player hit, independent of PlayerHealth — e.g. ZombieWaveManager reuses this for its wave-start alarm blink.</summary>
+    public void PlayFlash()
+    {
         if (flashCoroutine != null)
         {
             StopCoroutine(flashCoroutine);

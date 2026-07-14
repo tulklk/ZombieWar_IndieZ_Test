@@ -53,12 +53,16 @@ public class ZombieWaveSetupWindow : EditorWindow
     private const string ZombieTankPrefabPath = "Assets/Prefabs/Zombie/ZombieTank.prefab";
     private const string BigZombiePrefabPath = "Assets/Prefabs/Zombie/BigZombie_AI.prefab";
 
-    private static readonly string[] WaveNames = { "Wave 1", "Wave 2", "Final Wave" };
+    private static readonly string[] WaveNames = { "Phase 1", "Phase 2", "Final Phase" };
     private static readonly float[] DelayBeforeStart = { 1.5f, 1.5f, 2f };
     private static readonly float[] DelayAfterComplete = { 1.5f, 1.5f, 1.5f };
     private const float Wave1SpawnInterval = 0.8f;
     private const float Wave2SpawnInterval = 0.65f;
     private const float Wave3SpawnInterval = 0.5f;
+
+    private const float AnnouncementPanelHeight = 140f;
+    private const string HazardStripeSpritePath = "Assets/Sprites/UI/HazardStripes.png";
+    private const string EmergencyPhaseSfxPath = "Assets/Audio/SFX/Phase/EmergencyPhaseSFX.mp3";
 
     private const int SpawnPointsPerZone = 4;
     private const float ZoneStaggerDistance = 60f;
@@ -342,6 +346,63 @@ public class ZombieWaveSetupWindow : EditorWindow
         return material;
     }
 
+    /// <summary>
+    /// Generates a small tileable 45°-diagonal hazard-stripe texture (like warning tape) once
+    /// and saves it as a real Sprite asset, so WaveAnnouncementPanel's background can just
+    /// reference it — Image.Type.Tiled repeats it seamlessly across any panel width without
+    /// needing an actual imported image asset.
+    /// </summary>
+    private static Sprite GetOrCreateHazardStripeSprite()
+    {
+        Sprite existing = AssetDatabase.LoadAssetAtPath<Sprite>(HazardStripeSpritePath);
+
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        const int size = 64;
+        const int stripeWidth = 12;
+        Color stripeColor = new Color(0.7f, 0.06f, 0.04f, 1f);
+        Color gapColor = new Color(0.04f, 0.02f, 0.02f, 1f);
+
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                int diagonal = (x + y) % (stripeWidth * 2);
+                texture.SetPixel(x, y, diagonal < stripeWidth ? stripeColor : gapColor);
+            }
+        }
+
+        texture.Apply();
+
+        string folder = System.IO.Path.GetDirectoryName(HazardStripeSpritePath)?.Replace('\\', '/');
+        EnsureFolder(folder);
+
+        System.IO.File.WriteAllBytes(HazardStripeSpritePath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+
+        AssetDatabase.ImportAsset(HazardStripeSpritePath);
+
+        TextureImporter importer = AssetImporter.GetAtPath(HazardStripeSpritePath) as TextureImporter;
+
+        if (importer != null)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.mipmapEnabled = false;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(HazardStripeSpritePath);
+    }
+
     private static void EnsureFolder(string path)
     {
         if (string.IsNullOrEmpty(path) || AssetDatabase.IsValidFolder(path))
@@ -370,6 +431,10 @@ public class ZombieWaveSetupWindow : EditorWindow
         Transform gameManagerTransform = FindInActiveScene(scene, "GameManager");
         ZombieSpawner existingSpawner = gameManagerTransform != null ? gameManagerTransform.GetComponent<ZombieSpawner>() : null;
         SetReference(serializedManager, "backgroundSpawnerToDisable", existingSpawner);
+
+        Transform lowHealthOverlayTransform = FindInActiveScene(scene, "LowHealthOverlay");
+        HitFlashOverlay hitFlashOverlay = lowHealthOverlayTransform != null ? lowHealthOverlayTransform.GetComponent<HitFlashOverlay>() : null;
+        SetReference(serializedManager, "alarmFlashOverlay", hitFlashOverlay);
 
         GameObject zombiePrefab = LoadPrefabOrWarn(ZombiePrefabPath);
         GameObject runnerPrefab = LoadPrefabOrWarn(ZombieRunnerPrefabPath);
@@ -480,7 +545,7 @@ public class ZombieWaveSetupWindow : EditorWindow
         RectTransform hudRect = hudRoot.GetComponent<RectTransform>();
         StretchFull(hudRect);
 
-        TMP_Text waveTitleText = GetOrCreateTmpText(hudRoot, "WaveTitleText", "WAVE 1 / 3", 42f);
+        TMP_Text waveTitleText = GetOrCreateTmpText(hudRoot, "WaveTitleText", "PHASE 1 / 3", 42f);
         RectTransform titleRect = waveTitleText.rectTransform;
         titleRect.anchorMin = new Vector2(0.5f, 1f);
         titleRect.anchorMax = new Vector2(0.5f, 1f);
@@ -497,12 +562,19 @@ public class ZombieWaveSetupWindow : EditorWindow
         remainingRect.anchoredPosition = new Vector2(0f, -85f);
 
         RectTransform announcementRect = GetOrCreateUIChildImage(hudRoot, "WaveAnnouncementPanel", out Image announcementBg);
-        announcementRect.anchorMin = new Vector2(0.5f, 0.5f);
-        announcementRect.anchorMax = new Vector2(0.5f, 0.5f);
+        announcementRect.anchorMin = new Vector2(0f, 0.5f);
+        announcementRect.anchorMax = new Vector2(1f, 0.5f);
         announcementRect.pivot = new Vector2(0.5f, 0.5f);
-        announcementRect.sizeDelta = new Vector2(900f, 160f);
+        announcementRect.sizeDelta = new Vector2(0f, AnnouncementPanelHeight);
         announcementRect.anchoredPosition = Vector2.zero;
-        announcementBg.color = new Color(0f, 0f, 0f, 0.6f);
+
+        // The panel's own Image IS the hazard-stripe layer (renders first/behind, before
+        // any children) — a separate DarkOverlayBar child sits on top of it for text
+        // contrast, and AnnouncementText renders last, on top of both.
+        announcementBg.sprite = GetOrCreateHazardStripeSprite();
+        announcementBg.type = Image.Type.Tiled;
+        announcementBg.pixelsPerUnitMultiplier = 0.5f;
+        announcementBg.color = Color.white;
         announcementBg.raycastTarget = false;
 
         CanvasGroup announcementCanvasGroup = announcementRect.GetComponent<CanvasGroup>();
@@ -517,18 +589,27 @@ public class ZombieWaveSetupWindow : EditorWindow
         announcementCanvasGroup.blocksRaycasts = false;
         announcementRect.gameObject.SetActive(false);
 
-        TMP_Text announcementText = GetOrCreateTmpText(announcementRect, "AnnouncementText", "WAVE 1", 64f);
+        RectTransform overlayRect = GetOrCreateUIChildImage(announcementRect, "DarkOverlayBar", out Image overlayImage);
+        StretchFull(overlayRect);
+        overlayImage.color = new Color(0f, 0f, 0f, 0.72f);
+        overlayImage.raycastTarget = false;
+        overlayImage.transform.SetAsFirstSibling();
+
+        TMP_Text announcementText = GetOrCreateTmpText(announcementRect, "AnnouncementText", "PHASE 1", 64f);
         RectTransform announcementTextRect = announcementText.rectTransform;
         announcementTextRect.anchorMin = Vector2.zero;
         announcementTextRect.anchorMax = Vector2.one;
         announcementTextRect.offsetMin = new Vector2(20f, 10f);
         announcementTextRect.offsetMax = new Vector2(-20f, -10f);
+        announcementText.color = Color.white;
 
+        SetReference(serializedManager, "waveHudRoot", hudRoot.gameObject);
         SetReference(serializedManager, "waveTitleText", waveTitleText);
         SetReference(serializedManager, "zombieRemainingText", remainingText);
         SetReference(serializedManager, "waveAnnouncementPanel", announcementRect.gameObject);
         SetReference(serializedManager, "waveAnnouncementCanvasGroup", announcementCanvasGroup);
         SetReference(serializedManager, "waveAnnouncementText", announcementText);
+        SetReference(serializedManager, "emergencyAnnouncementSfx", AssetDatabase.LoadAssetAtPath<AudioClip>(EmergencyPhaseSfxPath));
     }
 
     private static TMP_Text GetOrCreateTmpText(Transform parent, string name, string defaultText, float fontSize)
@@ -614,8 +695,17 @@ public class ZombieWaveSetupWindow : EditorWindow
     {
         rect.anchorMin = Vector2.zero;
         rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+
+        // offsetMin/offsetMax alone are supposed to be equivalent to zeroing anchoredPosition/
+        // sizeDelta for a fully-stretched rect, but WaveHUD was previously found sitting at a
+        // nonzero anchoredPosition (probably left over from a manual drag) even with offsets
+        // set — so both are reset explicitly here to guarantee an edge-to-edge stretch with
+        // no residual offset, however the rect got into that state.
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
     }
 
     private static void SetReference(SerializedObject serializedObject, string propertyName, Object value)

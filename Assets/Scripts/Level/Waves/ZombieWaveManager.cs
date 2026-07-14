@@ -54,6 +54,8 @@ public class ZombieWaveManager : MonoBehaviour
     [SerializeField] private Transform playerTransform;
 
     [Header("UI")]
+    [Tooltip("Root GameObject holding WaveTitleText/ZombieRemainingText/WaveAnnouncementPanel — kept inactive until the Player triggers the first wave, so no HUD counter shows during pre-combat exploration.")]
+    [SerializeField] private GameObject waveHudRoot;
     [SerializeField] private TMP_Text waveTitleText;
     [SerializeField] private TMP_Text zombieRemainingText;
     [SerializeField] private GameObject waveAnnouncementPanel;
@@ -63,6 +65,18 @@ public class ZombieWaveManager : MonoBehaviour
     [Header("Announcement Timing")]
     [SerializeField] private float announcementFadeDuration = 0.35f;
     [SerializeField] private float announcementHoldDuration = 1f;
+    [Tooltip("How many on/off pulses AnnouncementText blinks through while the start-of-wave alarm SFX plays.")]
+    [SerializeField] private int announcementBlinkCount = 4;
+    [Range(0.05f, 1f)]
+    [SerializeField] private float announcementBlinkMinAlpha = 0.15f;
+
+    [Header("Announcement Audio")]
+    [Tooltip("Played once when a new wave's start announcement appears (e.g. an alarm/siren sting). AnnouncementText blinks in sync with this clip's length before spawning begins.")]
+    [SerializeField] private AudioClip emergencyAnnouncementSfx;
+    [Tooltip("Auto-added if left empty.")]
+    [SerializeField] private AudioSource announcementAudioSource;
+    [Tooltip("The same full-screen red border flash used when Player takes damage — pulsed once per AnnouncementText blink during a wave-START alarm only. Left untouched for wave/level-complete announcements.")]
+    [SerializeField] private HitFlashOverlay alarmFlashOverlay;
 
     [Header("Settings")]
     [SerializeField] private bool startFirstWaveAutomatically = false;
@@ -74,6 +88,9 @@ public class ZombieWaveManager : MonoBehaviour
     [Header("Level Completion")]
     [SerializeField] private GameObject victoryPanel;
     [SerializeField] private UnityEvent onAllWavesCompleted;
+
+    /// <summary>Read-only access for Editor tooling (e.g. LevelResultSetup) to wire a persistent listener onto onAllWavesCompleted without needing the field itself public.</summary>
+    public UnityEvent OnAllWavesCompletedEvent => onAllWavesCompleted;
 
     [Header("Existing Systems")]
     [Tooltip("The project's existing continuous background spawner (if placed in this scene) is disabled on Awake so it doesn't compete with wave-based spawning.")]
@@ -114,10 +131,29 @@ public class ZombieWaveManager : MonoBehaviour
             waveAnnouncementPanel.SetActive(false);
         }
 
+        if (waveHudRoot != null)
+        {
+            waveHudRoot.SetActive(false);
+        }
+
         if (victoryPanel != null)
         {
             victoryPanel.SetActive(false);
         }
+
+        if (announcementAudioSource == null)
+        {
+            announcementAudioSource = GetComponent<AudioSource>();
+        }
+
+        if (announcementAudioSource == null)
+        {
+            announcementAudioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        announcementAudioSource.playOnAwake = false;
+        announcementAudioSource.loop = false;
+        announcementAudioSource.spatialBlend = 0f;
 
         InitializeWaveTriggers();
         UpdateWaveTitleUI();
@@ -220,6 +256,11 @@ public class ZombieWaveManager : MonoBehaviour
         currentWaveIndex = waveIndex;
         CurrentState = WaveState.Starting;
 
+        if (waveHudRoot != null && !waveHudRoot.activeSelf)
+        {
+            waveHudRoot.SetActive(true);
+        }
+
         if (waveRoutine != null)
         {
             StopCoroutine(waveRoutine);
@@ -243,8 +284,11 @@ public class ZombieWaveManager : MonoBehaviour
 
         CloseAllBarriers(wave);
 
-        ShowAnnouncement(WaveLabel(wave, currentWaveIndex).ToUpperInvariant());
         Log($"Wave '{WaveLabel(wave, currentWaveIndex)}' starting — {CountTotalZombies(wave)} zombies queued.");
+
+        // Blocking (not fire-and-forget like ShowAnnouncement): spawning must not start until
+        // the alarm SFX + text blink have fully played out.
+        yield return PlayWaveStartAnnouncement(WaveLabel(wave, currentWaveIndex).ToUpperInvariant());
 
         if (wave.delayBeforeStart > 0f)
         {
@@ -495,7 +539,7 @@ public class ZombieWaveManager : MonoBehaviour
         }
 
         int displayIndex = Mathf.Clamp(currentWaveIndex + 1, 1, waves.Length);
-        waveTitleText.text = $"WAVE {displayIndex} / {waves.Length}";
+        waveTitleText.text = $"PHASE {displayIndex} / {waves.Length}";
     }
 
     private void UpdateRemainingUI()
@@ -560,6 +604,112 @@ public class ZombieWaveManager : MonoBehaviour
         announcementRoutine = null;
     }
 
+    /// <summary>
+    /// The wave-start alarm: fades the panel in, plays emergencyAnnouncementSfx once, blinks
+    /// AnnouncementText a fixed number of times over that clip's length, then fades back out.
+    /// Unlike ShowAnnouncement (fire-and-forget, used for "wave complete"/"level complete"),
+    /// this is meant to be yielded on directly from RunWaveRoutine so spawning can never start
+    /// before the alarm has fully played out.
+    /// </summary>
+    private IEnumerator PlayWaveStartAnnouncement(string text)
+    {
+        if (waveAnnouncementPanel == null)
+        {
+            Log($"[Announcement] {text}");
+            yield break;
+        }
+
+        if (announcementRoutine != null)
+        {
+            StopCoroutine(announcementRoutine);
+            announcementRoutine = null;
+        }
+
+        if (waveAnnouncementText != null)
+        {
+            waveAnnouncementText.text = text;
+            waveAnnouncementText.alpha = 1f;
+        }
+
+        waveAnnouncementPanel.SetActive(true);
+
+        RectTransform panelRect = waveAnnouncementPanel.transform as RectTransform;
+
+        if (panelRect != null)
+        {
+            panelRect.localScale = Vector3.one * AnnouncementStartScale;
+        }
+
+        if (waveAnnouncementCanvasGroup != null)
+        {
+            waveAnnouncementCanvasGroup.alpha = 0f;
+            yield return FadeAndScale(panelRect, 0f, 1f, AnnouncementStartScale, 1f, announcementFadeDuration);
+        }
+
+        float sfxDuration = 0f;
+
+        if (emergencyAnnouncementSfx != null)
+        {
+            bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
+
+            if (sfxEnabled && announcementAudioSource != null)
+            {
+                announcementAudioSource.clip = emergencyAnnouncementSfx;
+                announcementAudioSource.Play();
+            }
+
+            sfxDuration = emergencyAnnouncementSfx.length;
+        }
+
+        yield return BlinkAnnouncementText(sfxDuration > 0f ? sfxDuration : announcementHoldDuration);
+
+        if (waveAnnouncementCanvasGroup != null)
+        {
+            yield return FadeAndScale(panelRect, 1f, 0f, 1f, AnnouncementStartScale, announcementFadeDuration);
+        }
+
+        waveAnnouncementPanel.SetActive(false);
+    }
+
+    private IEnumerator BlinkAnnouncementText(float totalDuration)
+    {
+        if (waveAnnouncementText == null || totalDuration <= 0f || announcementBlinkCount <= 0)
+        {
+            yield break;
+        }
+
+        float halfCycleDuration = totalDuration / (announcementBlinkCount * 2f);
+
+        for (int i = 0; i < announcementBlinkCount; i++)
+        {
+            alarmFlashOverlay?.PlayFlash();
+            yield return LerpTextAlpha(1f, announcementBlinkMinAlpha, halfCycleDuration);
+            yield return LerpTextAlpha(announcementBlinkMinAlpha, 1f, halfCycleDuration);
+        }
+
+        waveAnnouncementText.alpha = 1f;
+    }
+
+    private IEnumerator LerpTextAlpha(float fromAlpha, float toAlpha, float duration)
+    {
+        if (duration <= 0f)
+        {
+            waveAnnouncementText.alpha = toAlpha;
+            yield break;
+        }
+
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            waveAnnouncementText.alpha = Mathf.Lerp(fromAlpha, toAlpha, Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
+
+        waveAnnouncementText.alpha = toAlpha;
+    }
+
     private IEnumerator FadeAndScale(RectTransform rect, float fromAlpha, float toAlpha, float fromScale, float toScale, float duration)
     {
         if (duration <= 0f)
@@ -621,6 +771,11 @@ public class ZombieWaveManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Doesn't open the barriers immediately — arms each one so it stays solid until the
+    /// Player actually walks up to it, at which point WaveBarrier's own approach trigger
+    /// plays the slide-down-into-the-ground animation and opens the path.
+    /// </summary>
     private void OpenAllBarriers(WaveData wave)
     {
         if (wave.barriers == null || wave.barriers.Length == 0)
@@ -633,14 +788,14 @@ public class ZombieWaveManager : MonoBehaviour
         {
             if (barrier != null)
             {
-                barrier.OpenBarrier();
+                barrier.ArmForPlayerApproach();
             }
         }
     }
 
     private static string WaveLabel(WaveData wave, int index)
     {
-        return !string.IsNullOrEmpty(wave?.waveName) ? wave.waveName : $"Wave {index + 1}";
+        return !string.IsNullOrEmpty(wave?.waveName) ? wave.waveName : $"Phase {index + 1}";
     }
 
     private static int CountTotalZombies(WaveData wave)

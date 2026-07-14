@@ -3,11 +3,15 @@ using UnityEngine;
 using UnityEngine.AI;
 
 /// <summary>
-/// A gate blocking the corridor between two wave zones. Closed = a solid Collider blocks
-/// the Player (and, if a NavMeshObstacle is assigned, carves zombie NavMesh paths too);
-/// Open = the Collider disables after disableDelayAfterOpen so an open/close animation
-/// has time to finish before the path is actually walkable. NavMesh is never rebaked —
-/// obstacle carving is the only supported way to change zombie pathing at runtime.
+/// A gate blocking the corridor between two wave zones. While closed, a solid Collider
+/// blocks the Player (and, if a NavMeshObstacle is assigned, carves zombie NavMesh paths
+/// too). Once ZombieWaveManager calls ArmForPlayerApproach() (the wave is done, but the
+/// barrier stays solid), walking into the barrier's own approach trigger — a second,
+/// bigger BoxCollider auto-added around the blocking one — is what actually opens it:
+/// the barrier slides straight down into the ground over slideDownDuration and its
+/// colliders disable immediately so the Player isn't blocked mid-animation. NavMesh is
+/// never rebaked — obstacle carving is the only supported way to change zombie pathing
+/// at runtime.
 /// </summary>
 public class WaveBarrier : MonoBehaviour
 {
@@ -16,7 +20,18 @@ public class WaveBarrier : MonoBehaviour
     [SerializeField] private Collider blockingCollider;
     [SerializeField] private NavMeshObstacle navMeshObstacle;
 
-    [Header("Animation")]
+    [Header("Approach Trigger")]
+    [Tooltip("Auto-added (sized around blockingCollider + approachTriggerPadding) if left empty. The Player must enter this zone, after ArmForPlayerApproach() has been called, for the barrier to actually open.")]
+    [SerializeField] private BoxCollider approachTrigger;
+    [Tooltip("Extra world-space distance, on every side, the approach trigger extends past blockingCollider's own bounds.")]
+    [SerializeField] private float approachTriggerPadding = 3f;
+
+    [Header("Slide-Down Animation")]
+    [Tooltip("Extra distance added on top of the barrier's own measured height, so it fully disappears below the floor instead of leaving the top sticking out — a fixed slide distance looked barely-moved on tall/scaled-up barriers.")]
+    [SerializeField] private float slideDownExtraMargin = 1f;
+    [SerializeField] private float slideDownDuration = 0.8f;
+
+    [Header("Animation (optional, for a barrier with its own Animator)")]
     [SerializeField] private Animator animator;
     [SerializeField] private string openTriggerName = "Open";
     [SerializeField] private string closeTriggerName = "Close";
@@ -28,16 +43,19 @@ public class WaveBarrier : MonoBehaviour
 
     [Header("Settings")]
     [SerializeField] private bool startClosed = true;
-    [SerializeField] private float disableDelayAfterOpen = 0.5f;
 
     private int openTriggerHash;
     private int closeTriggerHash;
     private Coroutine openRoutine;
+    private Vector3 closedPosition;
+    private bool armedForApproach;
 
     public bool IsOpen { get; private set; }
 
     private void Awake()
     {
+        closedPosition = transform.position;
+
         if (!string.IsNullOrEmpty(openTriggerName))
         {
             openTriggerHash = Animator.StringToHash(openTriggerName);
@@ -47,6 +65,8 @@ public class WaveBarrier : MonoBehaviour
         {
             closeTriggerHash = Animator.StringToHash(closeTriggerName);
         }
+
+        EnsureApproachTrigger();
 
         // Applied instantly (no animation/audio/coroutine) — this establishes the scene's
         // starting state, not a runtime open/close event.
@@ -66,6 +86,54 @@ public class WaveBarrier : MonoBehaviour
         {
             navMeshObstacle.enabled = startClosed;
         }
+
+        if (approachTrigger != null)
+        {
+            approachTrigger.enabled = false;
+        }
+    }
+
+    /// <summary>
+    /// blockingCollider is expected to be a BoxCollider (every barrier this project builds is
+    /// a primitive Cube) — the trigger is sized to match it plus approachTriggerPadding
+    /// world units on every side, converted into local space via lossyScale so it comes out
+    /// right regardless of how this specific barrier was scaled/rotated by hand.
+    /// </summary>
+    private void EnsureApproachTrigger()
+    {
+        if (approachTrigger != null)
+        {
+            approachTrigger.isTrigger = true;
+            return;
+        }
+
+        if (!(blockingCollider is BoxCollider blockingBox))
+        {
+            Debug.LogWarning($"[WaveBarrier] '{name}' has no BoxCollider approachTrigger assigned and blockingCollider isn't a BoxCollider either — cannot auto-create the approach trigger. Assign one by hand.", this);
+            return;
+        }
+
+        approachTrigger = gameObject.AddComponent<BoxCollider>();
+        approachTrigger.isTrigger = true;
+
+        Vector3 scale = transform.lossyScale;
+        Vector3 paddingInLocalSpace = new Vector3(
+            Mathf.Abs(scale.x) > 0.0001f ? approachTriggerPadding / scale.x : approachTriggerPadding,
+            Mathf.Abs(scale.y) > 0.0001f ? approachTriggerPadding / scale.y : approachTriggerPadding,
+            Mathf.Abs(scale.z) > 0.0001f ? approachTriggerPadding / scale.z : approachTriggerPadding);
+
+        approachTrigger.center = blockingBox.center;
+        approachTrigger.size = blockingBox.size + paddingInLocalSpace * 2f;
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (!armedForApproach || IsOpen || !other.CompareTag("Player"))
+        {
+            return;
+        }
+
+        OpenBarrier();
     }
 
     public void SetBarrierState(bool isOpen)
@@ -80,6 +148,22 @@ public class WaveBarrier : MonoBehaviour
         }
     }
 
+    /// <summary>Wave is done, but the barrier stays solid until the Player actually walks up to it (see OnTriggerEnter).</summary>
+    public void ArmForPlayerApproach()
+    {
+        if (IsOpen)
+        {
+            return;
+        }
+
+        armedForApproach = true;
+
+        if (approachTrigger != null)
+        {
+            approachTrigger.enabled = true;
+        }
+    }
+
     public void CloseBarrier()
     {
         if (openRoutine != null)
@@ -89,6 +173,8 @@ public class WaveBarrier : MonoBehaviour
         }
 
         IsOpen = false;
+        armedForApproach = false;
+        transform.position = closedPosition;
 
         if (barrierVisual != null)
         {
@@ -103,6 +189,11 @@ public class WaveBarrier : MonoBehaviour
         if (navMeshObstacle != null)
         {
             navMeshObstacle.enabled = true;
+        }
+
+        if (approachTrigger != null)
+        {
+            approachTrigger.enabled = false;
         }
 
         if (animator != null && !string.IsNullOrEmpty(closeTriggerName))
@@ -121,6 +212,7 @@ public class WaveBarrier : MonoBehaviour
         }
 
         IsOpen = true;
+        armedForApproach = false;
 
         if (animator != null && !string.IsNullOrEmpty(openTriggerName))
         {
@@ -134,19 +226,51 @@ public class WaveBarrier : MonoBehaviour
             navMeshObstacle.enabled = false;
         }
 
-        openRoutine = StartCoroutine(DisableCollisionAfterDelay());
-    }
+        // Measured from blockingCollider's world-space bounds BEFORE disabling it — a
+        // disabled Collider can't be trusted to report bounds correctly. Using the
+        // barrier's own actual height (instead of one fixed distance for every barrier)
+        // is what fixes tall/hand-scaled barriers only sliding "a little".
+        float slideDistance = CalculateSlideDownDistance();
 
-    private IEnumerator DisableCollisionAfterDelay()
-    {
-        // Real-time so a paused/slowed game doesn't stall the gate mid-open.
-        yield return new WaitForSecondsRealtime(disableDelayAfterOpen);
-
+        // Disabled immediately (not after the slide finishes) — the Player only ever
+        // triggers this by walking right up to the barrier, so by the time it's fully
+        // sunk they're already moving through where it used to block.
         if (blockingCollider != null)
         {
             blockingCollider.enabled = false;
         }
 
+        if (approachTrigger != null)
+        {
+            approachTrigger.enabled = false;
+        }
+
+        openRoutine = StartCoroutine(SlideDownRoutine(slideDistance));
+    }
+
+    private float CalculateSlideDownDistance()
+    {
+        float barrierHeight = blockingCollider != null
+            ? blockingCollider.bounds.size.y
+            : transform.lossyScale.y;
+
+        return barrierHeight + slideDownExtraMargin;
+    }
+
+    private IEnumerator SlideDownRoutine(float slideDistance)
+    {
+        Vector3 startPosition = transform.position;
+        Vector3 endPosition = startPosition + Vector3.down * slideDistance;
+        float elapsed = 0f;
+
+        while (elapsed < slideDownDuration)
+        {
+            elapsed += Time.deltaTime;
+            transform.position = Vector3.Lerp(startPosition, endPosition, Mathf.Clamp01(elapsed / slideDownDuration));
+            yield return null;
+        }
+
+        transform.position = endPosition;
         openRoutine = null;
     }
 
@@ -169,13 +293,17 @@ public class WaveBarrier : MonoBehaviour
     {
         Collider col = blockingCollider != null ? blockingCollider : GetComponent<Collider>();
 
-        if (col == null)
+        if (col != null)
         {
-            return;
+            bool open = Application.isPlaying ? IsOpen : !startClosed;
+            Gizmos.color = open ? new Color(0f, 1f, 0f, 0.4f) : new Color(1f, 0f, 0f, 0.4f);
+            Gizmos.DrawCube(col.bounds.center, col.bounds.size);
         }
 
-        bool open = Application.isPlaying ? IsOpen : !startClosed;
-        Gizmos.color = open ? new Color(0f, 1f, 0f, 0.4f) : new Color(1f, 0f, 0f, 0.4f);
-        Gizmos.DrawCube(col.bounds.center, col.bounds.size);
+        if (approachTrigger != null)
+        {
+            Gizmos.color = new Color(1f, 1f, 0f, 0.2f);
+            Gizmos.DrawCube(approachTrigger.bounds.center, approachTrigger.bounds.size);
+        }
     }
 }

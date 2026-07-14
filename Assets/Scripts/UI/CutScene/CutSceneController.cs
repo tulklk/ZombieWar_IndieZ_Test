@@ -57,7 +57,17 @@ public class CutSceneController : MonoBehaviour
     [SerializeField] private AudioClip pageChangeClip;
     [SerializeField] private AudioClip skipClip;
     [SerializeField] private AudioClip backgroundMusic;
+    [Tooltip("Kept low relative to narrationVolume so the background music doesn't compete with the spoken lines.")]
+    [SerializeField, Range(0f, 1f)] private float backgroundMusicVolume = 0.2f;
     [SerializeField] private bool stopMusicWhenFinished = true;
+
+    [Header("Slide Narration Audio")]
+    [Tooltip("One narration clip per slide, matching cutSceneSprites' index. When a slide has a clip assigned, auto-advance waits for it to finish playing instead of imageDisplayDuration.")]
+    [SerializeField] private AudioClip[] slideAudioClips;
+    [Tooltip("Auto-added if left empty. Kept separate from audioSource (which plays the looping backgroundMusic) so narration doesn't interrupt the music.")]
+    [SerializeField] private AudioSource narrationAudioSource;
+    [Tooltip("Above 1 boosts the clip's own volume — lets narration read clearly over the (already-quiet) background music.")]
+    [SerializeField, Range(0f, 2f)] private float narrationVolume = 1.4f;
 
     [Header("Input")]
     [SerializeField] private bool tapAnywhereToContinue = true;
@@ -101,6 +111,16 @@ public class CutSceneController : MonoBehaviour
             nextSceneName = SceneLoadData.NextSceneName;
             SceneLoadData.NextSceneName = null;
         }
+
+        if (narrationAudioSource == null)
+        {
+            narrationAudioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        narrationAudioSource.playOnAwake = false;
+        narrationAudioSource.loop = false;
+        narrationAudioSource.spatialBlend = 0f;
+        narrationAudioSource.volume = narrationVolume;
 
         WireButtons();
     }
@@ -219,15 +239,56 @@ public class CutSceneController : MonoBehaviour
         yield return FadeCanvasGroup(0f, 1f, fadeInDuration);
         isTransitioning = false;
 
+        float slideDuration = PlaySlideNarration(currentIndex);
+
         advanceRequested = false;
         float elapsed = 0f;
         bool panLeftToRight = currentIndex % 2 == 0;
 
-        while (!advanceRequested && (!autoAdvance || elapsed < imageDisplayDuration))
+        while (!advanceRequested && (!autoAdvance || elapsed < slideDuration))
         {
             elapsed += Time.unscaledDeltaTime;
             ApplyKenBurns(elapsed, panLeftToRight);
             yield return null;
+        }
+
+        StopSlideNarration();
+    }
+
+    /// <summary>
+    /// Plays this slide's narration clip (if any) and returns how long auto-advance should
+    /// wait for — the clip's own length when one is assigned (so the slide never cuts off
+    /// mid-sentence), otherwise the fixed imageDisplayDuration.
+    /// </summary>
+    private float PlaySlideNarration(int index)
+    {
+        AudioClip clip = slideAudioClips != null && index >= 0 && index < slideAudioClips.Length
+            ? slideAudioClips[index]
+            : null;
+
+        if (clip == null || narrationAudioSource == null)
+        {
+            return imageDisplayDuration;
+        }
+
+        bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
+
+        if (sfxEnabled)
+        {
+            narrationAudioSource.Stop();
+            narrationAudioSource.clip = clip;
+            narrationAudioSource.time = 0f;
+            narrationAudioSource.Play();
+        }
+
+        return clip.length;
+    }
+
+    private void StopSlideNarration()
+    {
+        if (narrationAudioSource != null)
+        {
+            narrationAudioSource.Stop();
         }
     }
 
@@ -420,6 +481,7 @@ public class CutSceneController : MonoBehaviour
             inputBlocker.SetActive(false);
         }
 
+        StopSlideNarration();
         PlaySfx(skipClip);
 
         if (showDebugLogs)
@@ -553,6 +615,7 @@ public class CutSceneController : MonoBehaviour
         audioSource.loop = true;
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
+        audioSource.volume = backgroundMusicVolume;
         audioSource.Play();
     }
 

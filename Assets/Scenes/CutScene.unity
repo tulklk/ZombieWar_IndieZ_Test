@@ -744,7 +744,17 @@ MonoBehaviour:
   pageChangeClip: {fileID: 0}
   skipClip: {fileID: 0}
   backgroundMusic: {fileID: 0}
+  backgroundMusicVolume: 0.2
   stopMusicWhenFinished: 1
+  slideAudioClips:
+  - {fileID: 8300000, guid: b5419aeccd248e94f935b0069f7fe0da, type: 3}
+  - {fileID: 8300000, guid: eec1a21ca3bb2f04180113baae9fc6c0, type: 3}
+  - {fileID: 8300000, guid: 24d3947a9faa2384d944785f4ec6b659, type: 3}
+  - {fileID: 8300000, guid: 16dba1d7b8eae2e4fa584be96a804605, type: 3}
+  - {fileID: 8300000, guid: 64780f398c4048942a348f402001cea5, type: 3}
+  - {fileID: 8300000, guid: 4ca13a2fb35b2eb4d80db83df48b9ea5, type: 3}
+  narrationAudioSource: {fileID: 0}
+  narrationVolume: 1.25
   tapAnywhereToContinue: 1
   inputCooldown: 0.25
   showDebugLogs: 0
@@ -797,7 +807,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 16, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1124797614
@@ -822,15 +832,15 @@ MonoBehaviour:
       m_Calls: []
   m_text: SKIP
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 0161d805a3764c089bef00bfe00793f5, type: 2}
+  m_sharedMaterial: {fileID: 2147374, guid: 0161d805a3764c089bef00bfe00793f5, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 2583691263
-  m_fontColor: {r: 1, g: 1, b: 1, a: 0.6}
+    rgba: 1325400063
+  m_fontColor: {r: 1, g: 1, b: 1, a: 0.30588236}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -847,13 +857,13 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 32
-  m_fontSizeBase: 32
+  m_fontSize: 50
+  m_fontSizeBase: 50
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 0
+  m_fontStyle: 1
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -1456,7 +1466,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -90, y: -90}
+  m_AnchoredPosition: {x: -100, y: -868}
   m_SizeDelta: {x: 200, y: 90}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &1937495035

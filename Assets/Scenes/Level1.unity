@@ -1684,10 +1684,7 @@ MonoBehaviour:
     - {fileID: 1661701347}
     zombieEntries:
     - zombiePrefab: {fileID: 9062333846325122312, guid: a0d8b19769994254783ecb697c1846f7, type: 3}
-      amount: 6
-      spawnInterval: 0.8
-    - zombiePrefab: {fileID: 9062333846325122312, guid: 14dbf88239ce5c263d3431ad0dff5a57, type: 3}
-      amount: 2
+      amount: 8
       spawnInterval: 0.8
     delayBeforeStart: 1.5
     delayAfterComplete: 1.5
@@ -1708,7 +1705,7 @@ MonoBehaviour:
       amount: 8
       spawnInterval: 0.65
     - zombiePrefab: {fileID: 9062333846325122312, guid: 14dbf88239ce5c263d3431ad0dff5a57, type: 3}
-      amount: 4
+      amount: 2
       spawnInterval: 0.65
     - zombiePrefab: {fileID: 9062333846325122312, guid: 509e57f9f1b25ff0085aea971e870b8f, type: 3}
       amount: 1
@@ -1732,10 +1729,7 @@ MonoBehaviour:
       amount: 5
       spawnInterval: 0.5
     - zombiePrefab: {fileID: 9062333846325122312, guid: 509e57f9f1b25ff0085aea971e870b8f, type: 3}
-      amount: 2
-      spawnInterval: 0.5
-    - zombiePrefab: {fileID: 8381868781369525741, guid: 045c8c623f4cb7d45bf4297ff775763a, type: 3}
-      amount: 1
+      amount: 3
       spawnInterval: 0.5
     delayBeforeStart: 2
     delayAfterComplete: 1.5
@@ -2268,11 +2262,11 @@ MonoBehaviour:
   titleAnimationStyle: 1
   titleStartScale: 1.6
   titleSlideDistance: 250
-  titleDuration: 0.4
+  titleDuration: 0.6
   elementSlideDistance: 60
-  elementDuration: 0.3
-  staggerDelay: 0.12
-  elementsStartDelay: 0.15
+  elementDuration: 0.4
+  staggerDelay: 0.2
+  elementsStartDelay: 0.25
 --- !u!1001 &437643338
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2898,7 +2892,8 @@ MonoBehaviour:
   winTimeText: {fileID: 853628261}
   killCountText: {fileID: 966336604}
   scoreText: {fileID: 2136636569}
-  countUpDuration: 1.2
+  countUpDuration: 1
+  countUpGap: 0.2
   losePanel: {fileID: 1203184886}
   loseCanvasGroup: {fileID: 1203184888}
   loseTimeText: {fileID: 0}
@@ -9667,7 +9662,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &990005002
 RectTransform:
   m_ObjectHideFlags: 0
@@ -12235,11 +12230,11 @@ MonoBehaviour:
   titleAnimationStyle: 0
   titleStartScale: 1.6
   titleSlideDistance: 250
-  titleDuration: 0.4
+  titleDuration: 0.6
   elementSlideDistance: 60
-  elementDuration: 0.3
-  staggerDelay: 0.12
-  elementsStartDelay: 0.15
+  elementDuration: 0.4
+  staggerDelay: 0.2
+  elementsStartDelay: 0.25
 --- !u!1001 &1212362107
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -13734,6 +13729,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: cbccff23d766c0645b23384669cb0d6e, type: 2}
   - {fileID: 11400000, guid: cfb5139035618ed4f8fd1e137fcbff25, type: 2}
   currentWeaponIndex: 0
+  startingAmmoMultiplier: 1
   handSocket: {fileID: 822254103}
   backSocket: {fileID: 1733835270}
   animationController: {fileID: 1433472389}

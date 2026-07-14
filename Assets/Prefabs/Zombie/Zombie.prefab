@@ -3112,6 +3112,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ab7d85cdc6c39b4a9e4d7fa04dd0285, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  zombieData: {fileID: 11400000, guid: cb8bf2134387b0f46a7a86a8dcf9140d, type: 2}
   target: {fileID: 0}
   detectionRange: 8
   loseTargetRange: 12
@@ -3125,8 +3126,12 @@ MonoBehaviour:
   attackRange: 1.6
   attackCooldown: 1.2
   damage: 10
+  nearTickInterval: 0.2
+  farTickInterval: 0.7
+  nearDistanceThreshold: 10
   animator: {fileID: 1688524461984924413}
   attackSfx: {fileID: 8300000, guid: 692c928cabc2a53419d295bc53a935bf, type: 3}
+  audioSource: {fileID: 0}
 --- !u!114 &2938090121229229115
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3139,11 +3144,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ad8b581217653f40bae3966a782cd02, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  zombieData: {fileID: 11400000, guid: cb8bf2134387b0f46a7a86a8dcf9140d, type: 2}
   maxHealth: 50
   currentHealth: 0
   animator: {fileID: 1688524461984924413}
   zombieAI: {fileID: 5331768356952842362}
   zombieCollider: {fileID: 3552624016038086299}
+  showHealthBar: 1
+  healthBarHeightPadding: 0.25
+  fallbackHealthBarHeight: 2.2
   renderers:
   - {fileID: 314085264811424028}
   - {fileID: 3083346260326524560}
@@ -3160,9 +3169,10 @@ MonoBehaviour:
   - {fileID: 6409070743672611559}
   - {fileID: 5143565617412476717}
   hitColor: {r: 1, g: 0.25, b: 0, a: 1}
+  bloodStainColor: {r: 0.5, g: 0, b: 0, a: 1}
   flashDuration: 0.3
   floorSplatPrefab: {fileID: 5072542915499653931, guid: 514cebcc78aec1b4d8bfe09903d9ee42, type: 3}
-  directionalSplatPrefab: {fileID: 5072542915499653931, guid: 56ad05013316bcd46b21176a2f83f768, type: 3}
+  directionalSplatPrefab: {fileID: 0}
   groundLayerMask:
     serializedVersion: 2
     m_Bits: 64

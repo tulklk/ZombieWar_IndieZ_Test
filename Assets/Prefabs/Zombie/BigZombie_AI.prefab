@@ -93,6 +93,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 82db7b017894ba7f28d198ae77dcad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  zombieData: {fileID: 11400000, guid: a673a8ceac23f184b9010e23c50786f6, type: 2}
   target: {fileID: 0}
   detectionRange: 8
   loseTargetRange: 12
@@ -106,8 +107,12 @@ MonoBehaviour:
   attackRange: 4
   attackCooldown: 1.2
   damage: 10
+  nearTickInterval: 0.2
+  farTickInterval: 0.7
+  nearDistanceThreshold: 10
   animator: {fileID: 8140786597563828410}
   attackSfx: {fileID: 8300000, guid: 24406008f368476428336d342c32bdf6, type: 3}
+  audioSource: {fileID: 0}
 --- !u!114 &5657166053841962114
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -120,6 +125,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ad8b581217653f40bae3966a782cd02, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  zombieData: {fileID: 11400000, guid: a673a8ceac23f184b9010e23c50786f6, type: 2}
   maxHealth: 50
   currentHealth: 0
   animator: {fileID: 8140786597563828410}

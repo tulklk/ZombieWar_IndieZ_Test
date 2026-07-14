@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd32633fde1281a478a60495209af9ec, type: 3}
+  m_Name: ZombieTankData
+  m_EditorClassIdentifier: 
+  detectionRange: 7
+  loseTargetRange: 10
+  patrolRadius: 6
+  patrolWalkSpeed: 0.9
+  idleTimeMin: 1.2
+  idleTimeMax: 2.5
+  chaseWalkSpeed: 1.1
+  runSpeed: 1.8
+  runRampUpTime: 3.5
+  attackRange: 1.8
+  attackCooldown: 2
+  damage: 22
+  attackWindup: 0.5
+  nearTickInterval: 0.2
+  farTickInterval: 0.7
+  nearDistanceThreshold: 10
+  attackSfx: {fileID: 8300000, guid: 692c928cabc2a53419d295bc53a935bf, type: 3}
+  maxHealth: 110
+  hitColor: {r: 1, g: 0.25, b: 0, a: 1}
+  bloodStainColor: {r: 0.5, g: 0, b: 0, a: 1}
+  flashDuration: 0.3
+  floorSplatPrefab: {fileID: 5072542915499653931, guid: 514cebcc78aec1b4d8bfe09903d9ee42, type: 3}
+  directionalSplatPrefab: {fileID: 0}
+  groundLayerMask:
+    serializedVersion: 2
+    m_Bits: 64
+  destroyDelay: 2.5

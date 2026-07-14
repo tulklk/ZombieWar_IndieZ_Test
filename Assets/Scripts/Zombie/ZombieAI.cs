@@ -13,6 +13,10 @@ public class ZombieAI : MonoBehaviour
         Dead
     }
 
+    [Header("Data (optional — overrides every field below if assigned)")]
+    [Tooltip("Assign a ZombieData asset (Assets/ScriptableObjects/Zombies) to drive this zombie's stats from one shared, reusable asset instead of editing them inline per prefab.")]
+    [SerializeField] protected ZombieData zombieData;
+
     [Header("Target")]
     [SerializeField] protected Transform target;
 
@@ -73,6 +77,11 @@ public class ZombieAI : MonoBehaviour
 
     protected virtual void Awake()
     {
+        if (zombieData != null)
+        {
+            ApplyZombieData(zombieData);
+        }
+
         agent = GetComponent<NavMeshAgent>();
 
         if (animator == null)
@@ -102,6 +111,31 @@ public class ZombieAI : MonoBehaviour
         // Stagger the first tick so zombies spawned in the same frame don't all
         // re-check detection/destination on the same frame afterward either.
         nextAiTick = Time.time + Random.Range(0f, nearTickInterval);
+    }
+
+    /// <summary>Copies zombieData's values onto this instance's own fields — overridden by ZombieTank to also apply attackWindup.</summary>
+    protected virtual void ApplyZombieData(ZombieData data)
+    {
+        detectionRange = data.detectionRange;
+        loseTargetRange = data.loseTargetRange;
+        patrolRadius = data.patrolRadius;
+        patrolWalkSpeed = data.patrolWalkSpeed;
+        idleTimeMin = data.idleTimeMin;
+        idleTimeMax = data.idleTimeMax;
+        chaseWalkSpeed = data.chaseWalkSpeed;
+        runSpeed = data.runSpeed;
+        runRampUpTime = data.runRampUpTime;
+        attackRange = data.attackRange;
+        attackCooldown = data.attackCooldown;
+        damage = data.damage;
+        nearTickInterval = data.nearTickInterval;
+        farTickInterval = data.farTickInterval;
+        nearDistanceThreshold = data.nearDistanceThreshold;
+
+        if (data.attackSfx != null)
+        {
+            attackSfx = data.attackSfx;
+        }
     }
 
     protected virtual void Start()

@@ -6,6 +6,12 @@ public class ZombieTank : ZombieAI
     [Header("Tank")]
     [SerializeField] private float attackWindup = 0.4f;
 
+    protected override void ApplyZombieData(ZombieData data)
+    {
+        base.ApplyZombieData(data);
+        attackWindup = data.attackWindup;
+    }
+
     protected override void PerformAttack()
     {
         if (animator != null)

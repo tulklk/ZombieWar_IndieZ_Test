@@ -4,6 +4,10 @@ using UnityEngine.UI;
 
 public class ZombieHealth : MonoBehaviour
 {
+    [Header("Data (optional — overrides the health/hit-effect/blood/death fields below if assigned)")]
+    [Tooltip("Assign a ZombieData asset (Assets/ScriptableObjects/Zombies) to drive this zombie's stats from one shared, reusable asset instead of editing them inline per prefab. Usually the same asset assigned on this GameObject's ZombieAI.")]
+    [SerializeField] private ZombieData zombieData;
+
     [Header("Health")]
     [SerializeField] private int maxHealth = 50;
     [SerializeField] private int currentHealth;
@@ -35,6 +39,9 @@ public class ZombieHealth : MonoBehaviour
     [Header("Death")]
     [SerializeField] private float destroyDelay = 2.5f;
 
+    [Header("Score")]
+    [SerializeField] private int scoreValue = 10;
+
     private Color[] originalColors;
     private bool isDead;
     private bool countedAsActive;
@@ -50,11 +57,22 @@ public class ZombieHealth : MonoBehaviour
     /// </summary>
     public static int ActiveCount { get; private set; }
 
+    /// <summary>Added to the run's score total when this zombie dies — set from ZombieData if assigned.</summary>
+    public int ScoreValue => scoreValue;
+
     /// <summary>Fires exactly once, from Die(), before the GameObject is scheduled for destruction — subscribers (e.g. ZombieWaveManager) should unsubscribe once handled.</summary>
     public event System.Action<ZombieHealth> Died;
 
+    /// <summary>Instance-wide version of Died — lets LevelResultManager tally kills/score for the run without depending on ZombieWaveManager. Never unsubscribed per-instance since it's static; LevelResultManager unsubscribes itself in OnDisable instead.</summary>
+    public static event System.Action<ZombieHealth> AnyZombieDied;
+
     private void Awake()
     {
+        if (zombieData != null)
+        {
+            ApplyZombieData(zombieData);
+        }
+
         currentHealth = maxHealth;
         ActiveCount++;
         countedAsActive = true;
@@ -92,6 +110,31 @@ public class ZombieHealth : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.J))
         {
             TakeDamage(10);
+        }
+    }
+
+    private void ApplyZombieData(ZombieData data)
+    {
+        maxHealth = data.maxHealth;
+        hitColor = data.hitColor;
+        bloodStainColor = data.bloodStainColor;
+        flashDuration = data.flashDuration;
+        destroyDelay = data.destroyDelay;
+        scoreValue = data.scoreValue;
+
+        if (data.floorSplatPrefab != null)
+        {
+            floorSplatPrefab = data.floorSplatPrefab;
+        }
+
+        if (data.directionalSplatPrefab != null)
+        {
+            directionalSplatPrefab = data.directionalSplatPrefab;
+        }
+
+        if (data.groundLayerMask.value != 0)
+        {
+            groundLayerMask = data.groundLayerMask;
         }
     }
 
@@ -387,6 +430,7 @@ public class ZombieHealth : MonoBehaviour
     {
         isDead = true;
         Died?.Invoke(this);
+        AnyZombieDied?.Invoke(this);
 
         if (healthBarRoot != null)
         {

@@ -72,6 +72,7 @@ public static class LoadingSceneSetup
         if (loadingBarSlider != null)
         {
             ConfigureSlider(loadingBarSlider);
+            ConfigureSliderFillRect(loadingBarSlider);
 
             fillContainerRect = (loadingBarSlider.fillRect != null && loadingBarSlider.fillRect.parent is RectTransform fillAreaRect)
                 ? fillAreaRect
@@ -95,20 +96,29 @@ public static class LoadingSceneSetup
             edgePadding = FillPaddingX;
         }
 
-        RectTransform leftPointRect = GetOrCreateUIChild<RectTransform>(fillContainerRect, "LoadingBarLeftPoint", out _);
-        ConfigureEdgePoint(leftPointRect, atRightEdge: false, padding: edgePadding);
+        RectTransform leftPointRect = GetOrCreateUIChild<RectTransform>(fillContainerRect, "LoadingBarLeftPoint", out _, out bool leftPointIsNew);
+        if (leftPointIsNew)
+        {
+            ConfigureEdgePoint(leftPointRect, atRightEdge: false, padding: edgePadding);
+        }
 
-        RectTransform rightPointRect = GetOrCreateUIChild<RectTransform>(fillContainerRect, "LoadingBarRightPoint", out _);
-        ConfigureEdgePoint(rightPointRect, atRightEdge: true, padding: edgePadding);
+        RectTransform rightPointRect = GetOrCreateUIChild<RectTransform>(fillContainerRect, "LoadingBarRightPoint", out _, out bool rightPointIsNew);
+        if (rightPointIsNew)
+        {
+            ConfigureEdgePoint(rightPointRect, atRightEdge: true, padding: edgePadding);
+        }
 
         RenderTexture renderTexture = GetOrCreateRenderTexture();
 
-        RectTransform zombieRawImageRect = GetOrCreateUIChild<RawImage>(fillContainerRect, "ZombieRunner", out RawImage zombieRawImage);
-        zombieRawImageRect.anchorMin = new Vector2(0f, 0.5f);
-        zombieRawImageRect.anchorMax = new Vector2(0f, 0.5f);
-        zombieRawImageRect.pivot = new Vector2(0.5f, 0f);
-        zombieRawImageRect.sizeDelta = new Vector2(ZombieIconSize, ZombieIconSize);
-        zombieRawImageRect.anchoredPosition = Vector2.zero;
+        RectTransform zombieRawImageRect = GetOrCreateUIChild<RawImage>(fillContainerRect, "ZombieRunner", out RawImage zombieRawImage, out bool zombieIconIsNew);
+        if (zombieIconIsNew)
+        {
+            zombieRawImageRect.anchorMin = new Vector2(0f, 0.5f);
+            zombieRawImageRect.anchorMax = new Vector2(0f, 0.5f);
+            zombieRawImageRect.pivot = new Vector2(0.5f, 0f);
+            zombieRawImageRect.sizeDelta = new Vector2(ZombieIconSize, ZombieIconSize);
+            zombieRawImageRect.anchoredPosition = Vector2.zero;
+        }
         zombieRawImage.texture = renderTexture;
         zombieRawImage.raycastTarget = false;
         EditorUtility.SetDirty(zombieRawImage);
@@ -166,6 +176,39 @@ public static class LoadingSceneSetup
         slider.wholeNumbers = false;
         slider.value = 0f;
         EditorUtility.SetDirty(slider);
+    }
+
+    /// <summary>
+    /// Slider.Set() only ever writes anchorMin/anchorMax on the fillRect — it never touches
+    /// offsetMin/offsetMax/sizeDelta/anchoredPosition. This project's fillRect had those left
+    /// at a stale, non-standard config (sizeDelta ~10, anchoredPosition ~66, both anchors
+    /// collapsed to the same point) — for LeftToRight it happened to hold the left edge
+    /// "close enough" while barely filled, but visually drifted/stretched as the bar grew,
+    /// since the offset math (anchoredPosition ∓ sizeDelta*pivot) doesn't cleanly resolve to
+    /// zero. Resetting to the textbook Slider fillRect setup (anchorMin/Max both start at the
+    /// left edge with zero size, zero offsets) makes the left edge mathematically pinned to
+    /// Fill Area's own left edge for the entire 0-1 range, no matter what value Slider writes.
+    /// </summary>
+    private static void ConfigureSliderFillRect(Slider slider)
+    {
+        RectTransform fillRect = slider.fillRect;
+
+        if (fillRect == null)
+        {
+            return;
+        }
+
+        Undo.RecordObject(fillRect, UndoLabel);
+
+        bool leftToRight = slider.direction == Slider.Direction.LeftToRight;
+
+        fillRect.pivot = new Vector2(0.5f, 0.5f);
+        fillRect.anchorMin = leftToRight ? new Vector2(0f, 0f) : new Vector2(1f, 0f);
+        fillRect.anchorMax = leftToRight ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
+        fillRect.offsetMin = Vector2.zero;
+        fillRect.offsetMax = Vector2.zero;
+
+        EditorUtility.SetDirty(fillRect);
     }
 
     private static void ConfigureEdgePoint(RectTransform rect, bool atRightEdge, float padding)
@@ -253,15 +296,15 @@ public static class LoadingSceneSetup
             Undo.RegisterCreatedObjectUndo(cameraObject, UndoLabel);
             cameraObject.transform.SetParent(stageObject.transform, false);
             previewCamera = cameraObject.AddComponent<Camera>();
-        }
 
-        // Framed generously (tall + a fair margin, no tilt) so a roughly human-sized
-        // character is fully in frame regardless of this particular model's exact
-        // height/pivot — a previous, tighter framing (size 1.1, pitched 5°) cropped
-        // the top of the zombie. Nudge orthographicSize/position further in the
-        // Inspector if this specific prefab still isn't centered well.
-        cameraObject.transform.position = new Vector3(0f, 1f, -4f);
-        cameraObject.transform.rotation = Quaternion.identity;
+            // Framed generously (tall + a fair margin, no tilt) so a roughly human-sized
+            // character is fully in frame regardless of this particular model's exact
+            // height/pivot — a previous, tighter framing (size 1.1, pitched 5°) cropped
+            // the top of the zombie. Only applied on first creation so a manually
+            // re-framed preview camera isn't snapped back on every re-run.
+            cameraObject.transform.position = new Vector3(0f, 1f, -4f);
+            cameraObject.transform.rotation = Quaternion.identity;
+        }
 
         previewCamera.clearFlags = CameraClearFlags.SolidColor;
         previewCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
@@ -451,8 +494,15 @@ public static class LoadingSceneSetup
 
     private static RectTransform GetOrCreateUIChild<T>(Transform parent, string name, out T component) where T : Component
     {
+        return GetOrCreateUIChild(parent, name, out component, out _);
+    }
+
+    private static RectTransform GetOrCreateUIChild<T>(Transform parent, string name, out T component, out bool wasCreated) where T : Component
+    {
         Transform existing = FindImmediateChild(parent, name);
         GameObject childObject;
+
+        wasCreated = existing == null;
 
         if (existing != null)
         {

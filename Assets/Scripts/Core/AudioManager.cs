@@ -23,9 +23,9 @@ public class AudioManager : MonoBehaviour
 
     [Header("Music Volume")]
     [Tooltip("Music volume in menus (MainMenu, LoadingScene, etc).")]
-    [SerializeField, Range(0f, 1f)] private float defaultMusicVolume = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float defaultMusicVolume = 0.15f;
     [Tooltip("Music volume while in a Level scene — lowered a bit so gunfire/zombie SFX stand out.")]
-    [SerializeField, Range(0f, 1f)] private float levelMusicVolume = 0.3f;
+    [SerializeField, Range(0f, 1f)] private float levelMusicVolume = 0.15f;
 
     public bool MusicEnabled { get; private set; } = true;
     public bool SfxEnabled { get; private set; } = true;

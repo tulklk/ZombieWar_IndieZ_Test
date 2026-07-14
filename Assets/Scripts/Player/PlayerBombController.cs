@@ -37,12 +37,24 @@ public class PlayerBombController : MonoBehaviour
 
     private bool isThrowingBomb;
     private bool bombInHandVisible;
+    private bool inputLocked;
     private float lastThrowTime = -Mathf.Infinity;
     private GameObject heldBombInstance;
     private Coroutine failsafeCoroutine;
     private Coroutine throwSequenceCoroutine;
 
     public bool IsThrowingBomb => isThrowingBomb;
+
+    /// <summary>e.g. BossFightManager locks this during the boss intro cutscene so BombBtn presses do nothing.</summary>
+    public void SetInputLocked(bool locked)
+    {
+        inputLocked = locked;
+
+        if (locked)
+        {
+            CancelAim();
+        }
+    }
 
     private void Awake()
     {
@@ -170,6 +182,11 @@ public class PlayerBombController : MonoBehaviour
 
     private bool CanThrowBomb()
     {
+        if (inputLocked)
+        {
+            return false;
+        }
+
         if (isThrowingBomb)
         {
             return false;

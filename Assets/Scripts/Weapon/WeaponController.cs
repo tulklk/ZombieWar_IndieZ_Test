@@ -10,6 +10,8 @@ public class WeaponController : MonoBehaviour
     [Header("Weapons")]
     [SerializeField] private WeaponData[] weapons;
     [SerializeField] private int currentWeaponIndex;
+    [Tooltip("Scales magazineSize/maxAmmo from each weapon's shared WeaponData for THIS Player instance only — e.g. set to 2 on an easier level's Player for double ammo, while WeaponData itself (and every other level's Player) stays untouched.")]
+    [SerializeField] private float startingAmmoMultiplier = 1f;
 
     [Header("References")]
     [FormerlySerializedAs("firePoint")]
@@ -39,6 +41,7 @@ public class WeaponController : MonoBehaviour
     private float nextFireTime;
     private int[] currentMagazineAmmo;
     private int[] currentReserveAmmo;
+    private int[] scaledMagazineCapacity;
     private GameObject[] weaponModelInstances;
     private Transform[] leftHandGripTransforms;
     private Transform[] rightHandGripTransforms;
@@ -163,6 +166,7 @@ public class WeaponController : MonoBehaviour
 
         currentMagazineAmmo = new int[weapons.Length];
         currentReserveAmmo = new int[weapons.Length];
+        scaledMagazineCapacity = new int[weapons.Length];
 
         for (int i = 0; i < weapons.Length; i++)
         {
@@ -171,8 +175,11 @@ public class WeaponController : MonoBehaviour
                 continue;
             }
 
-            currentMagazineAmmo[i] = weapons[i].magazineSize;
-            currentReserveAmmo[i] = Mathf.Max(0, weapons[i].maxAmmo - weapons[i].magazineSize);
+            scaledMagazineCapacity[i] = Mathf.Max(1, Mathf.RoundToInt(weapons[i].magazineSize * startingAmmoMultiplier));
+            int scaledMaxAmmo = Mathf.Max(scaledMagazineCapacity[i], Mathf.RoundToInt(weapons[i].maxAmmo * startingAmmoMultiplier));
+
+            currentMagazineAmmo[i] = scaledMagazineCapacity[i];
+            currentReserveAmmo[i] = Mathf.Max(0, scaledMaxAmmo - scaledMagazineCapacity[i]);
         }
     }
 
@@ -763,7 +770,7 @@ public class WeaponController : MonoBehaviour
         }
 
         int index = currentWeaponIndex;
-        int missingAmmo = CurrentWeapon.magazineSize - currentMagazineAmmo[index];
+        int missingAmmo = scaledMagazineCapacity[index] - currentMagazineAmmo[index];
 
         if (missingAmmo <= 0 || currentReserveAmmo[index] <= 0)
         {
@@ -800,7 +807,7 @@ public class WeaponController : MonoBehaviour
     {
         yield return new WaitForSeconds(reloadDuration);
 
-        int missingAmmo = weapons[weaponIndex].magazineSize - currentMagazineAmmo[weaponIndex];
+        int missingAmmo = scaledMagazineCapacity[weaponIndex] - currentMagazineAmmo[weaponIndex];
         int amountToLoad = Mathf.Min(missingAmmo, currentReserveAmmo[weaponIndex]);
 
         currentMagazineAmmo[weaponIndex] += amountToLoad;

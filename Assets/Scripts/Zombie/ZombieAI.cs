@@ -64,6 +64,14 @@ public class ZombieAI : MonoBehaviour
     protected PlayerHealth playerHealth;
     protected ZombieState currentState;
     protected Vector3 spawnPosition;
+    protected bool isAiPaused;
+
+    /// <summary>Read-only stat accessors — e.g. for BossIntroUI to display Damage/Speed/Attack Range without a second, duplicate data source.</summary>
+    public int Damage => damage;
+    public float AttackRange => attackRange;
+    public float DetectionRange => detectionRange;
+    public float RunSpeed => runSpeed;
+    public ZombieData Data => zombieData;
 
     private float idleTimer;
     private float currentIdleDuration;
@@ -160,7 +168,7 @@ public class ZombieAI : MonoBehaviour
 
     protected virtual void Update()
     {
-        if (currentState == ZombieState.Dead)
+        if (currentState == ZombieState.Dead || isAiPaused)
         {
             return;
         }
@@ -295,6 +303,17 @@ public class ZombieAI : MonoBehaviour
 
     protected virtual void UpdatePatrolState()
     {
+        // A zombie whose spawn point isn't near any baked NavMesh never gets placed on one
+        // (agent.isOnNavMesh stays false) — EnterPatrolState() still sets currentState to
+        // Patrol regardless (matching every other Enter*State method), so this still runs
+        // every tick for that zombie. Reading remainingDistance/pathPending on an agent
+        // that was never placed on a NavMesh throws, so it must be guarded the same way
+        // every other agent-touching Update*State method in this class already is.
+        if (!IsAgentUsable)
+        {
+            return;
+        }
+
         if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.2f)
         {
             EnterIdleState();
@@ -493,6 +512,61 @@ public class ZombieAI : MonoBehaviour
     {
         target = newTarget;
         playerHealth = newTarget != null ? newTarget.GetComponent<PlayerHealth>() : null;
+    }
+
+    /// <summary>
+    /// Overrides attackRange/detectionRange directly on this instance, independent of
+    /// zombieData — e.g. for a boss scaled up well beyond its prefab's own authored size,
+    /// whose reach needs to grow to match or melee attacks silently miss despite looking
+    /// adjacent on screen. Left as a plain setter (not scale-aware itself) so callers decide
+    /// how the new values are derived.
+    /// </summary>
+    public void SetAttackAndDetectionRange(float newAttackRange, float newDetectionRange)
+    {
+        attackRange = newAttackRange;
+        detectionRange = newDetectionRange;
+    }
+
+    /// <summary>Overrides damage directly on this instance — e.g. BossFightManager boosting a Boss's damage on entering Phase 2.</summary>
+    public void SetDamage(int newDamage)
+    {
+        damage = newDamage;
+    }
+
+    /// <summary>Overrides the chase-speed cap directly on this instance — e.g. BossFightManager boosting a Boss's speed on entering Phase 2. Takes effect immediately since CalculateChaseSpeed reads this field every frame, never a cached copy.</summary>
+    public void SetRunSpeed(float newRunSpeed)
+    {
+        runSpeed = newRunSpeed;
+    }
+
+    /// <summary>
+    /// Freezes/resumes this zombie's whole state machine (used by BossFightManager during
+    /// the boss intro cutscene) without touching currentState the way SetDead() does — so
+    /// resuming picks back up exactly where it left off instead of forcing Idle. While
+    /// paused the NavMeshAgent is stopped and its velocity zeroed so a boss doesn't keep
+    /// drifting on its last heading; MoveSpeed is reset to 0 so it holds an idle pose.
+    /// </summary>
+    public virtual void SetAIEnabled(bool isEnabled)
+    {
+        isAiPaused = !isEnabled;
+
+        if (isAiPaused)
+        {
+            if (IsAgentUsable)
+            {
+                agent.isStopped = true;
+                agent.velocity = Vector3.zero;
+            }
+
+            if (animator != null)
+            {
+                animator.SetFloat(MoveSpeedHash, 0f);
+            }
+        }
+        else if (IsAgentUsable && currentState != ZombieState.Idle && currentState != ZombieState.Attack)
+        {
+            agent.isStopped = false;
+        }
     }
 
     public virtual void SetDead()

@@ -12,6 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dd32633fde1281a478a60495209af9ec, type: 3}
   m_Name: BigZombieData
   m_EditorClassIdentifier: 
+  bossName: 
+  bossType: 
   detectionRange: 8
   loseTargetRange: 12
   patrolRadius: 6
@@ -29,7 +31,8 @@ MonoBehaviour:
   farTickInterval: 0.7
   nearDistanceThreshold: 10
   attackSfx: {fileID: 8300000, guid: 24406008f368476428336d342c32bdf6, type: 3}
-  maxHealth: 50
+  maxHealth: 500
+  scoreValue: 10
   hitColor: {r: 1, g: 0.25, b: 0, a: 1}
   bloodStainColor: {r: 0.5, g: 0, b: 0, a: 1}
   flashDuration: 0.3

@@ -9,6 +9,10 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewZombieData", menuName = "Zombie War/Zombie Data")]
 public class ZombieData : ScriptableObject
 {
+    [Header("Boss Display (optional — read by BossIntroUI/BossFightManager when this zombie type is used as a boss; regular zombies can leave these blank)")]
+    public string bossName;
+    public string bossType;
+
     [Header("Detection")]
     public float detectionRange = 8f;
     public float loseTargetRange = 12f;

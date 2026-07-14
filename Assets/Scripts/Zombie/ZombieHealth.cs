@@ -60,11 +60,18 @@ public class ZombieHealth : MonoBehaviour
     /// <summary>Added to the run's score total when this zombie dies — set from ZombieData if assigned.</summary>
     public int ScoreValue => scoreValue;
 
+    /// <summary>Read-only current/max health — e.g. for BossHealthUI/BossIntroUI to read the starting value before the first HealthChanged event fires.</summary>
+    public int CurrentHealth => currentHealth;
+    public int MaxHealth => maxHealth;
+
     /// <summary>Fires exactly once, from Die(), before the GameObject is scheduled for destruction — subscribers (e.g. ZombieWaveManager) should unsubscribe once handled.</summary>
     public event System.Action<ZombieHealth> Died;
 
     /// <summary>Instance-wide version of Died — lets LevelResultManager tally kills/score for the run without depending on ZombieWaveManager. Never unsubscribed per-instance since it's static; LevelResultManager unsubscribes itself in OnDisable instead.</summary>
     public static event System.Action<ZombieHealth> AnyZombieDied;
+
+    /// <summary>Fires every time TakeDamage changes currentHealth — e.g. BossHealthUI updates its fill bar from this instead of polling every frame.</summary>
+    public event System.Action<int, int> HealthChanged;
 
     private void Awake()
     {
@@ -152,6 +159,7 @@ public class ZombieHealth : MonoBehaviour
 
         currentHealth -= damage;
         currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
+        HealthChanged?.Invoke(currentHealth, maxHealth);
 
         DamageNumberSpawner.Spawn(hitPoint, damage, Color.red);
 
@@ -164,6 +172,26 @@ public class ZombieHealth : MonoBehaviour
         {
             Die();
         }
+    }
+
+    /// <summary>
+    /// Grows maxHealth by a multiplier and scales currentHealth by the same ratio (a Boss at
+    /// 50% stays at 50% of the new, bigger pool — a "power surge" rather than a jarring
+    /// full-refill) — e.g. for BossFightManager's Phase 2 transition. No-ops if already dead
+    /// or given a non-positive multiplier. Fires HealthChanged so UI updates immediately.
+    /// </summary>
+    public void ScaleMaxHealth(float multiplier)
+    {
+        if (isDead || multiplier <= 0f)
+        {
+            return;
+        }
+
+        maxHealth = Mathf.Max(Mathf.RoundToInt(maxHealth * multiplier), 1);
+        currentHealth = Mathf.Clamp(Mathf.RoundToInt(currentHealth * multiplier), 1, maxHealth);
+
+        HealthChanged?.Invoke(currentHealth, maxHealth);
+        UpdateHealthBar();
     }
 
     private const float BloodVfxDestroyDelay = 5f;

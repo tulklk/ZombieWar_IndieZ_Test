@@ -21,6 +21,8 @@ public class BossHealthUI : MonoBehaviour
     [SerializeField] private TMP_Text bossPhaseText;
     [SerializeField] private float fillSmoothSpeed = 5f;
     [SerializeField] private Gradient healthGradient;
+    [Tooltip("WaveHUD (Phase/Zombies-remaining counter) — hidden the moment this panel shows, since it'd otherwise overlap the same top area of the screen and no longer means anything once the Boss fight has started. Left hidden even after this panel hides (the level is ending either way at that point). Leave empty to skip this entirely.")]
+    [SerializeField] private GameObject waveHudRoot;
 
     [Header("Fade")]
     [SerializeField] private float fadeDuration = 0.35f;
@@ -101,11 +103,19 @@ public class BossHealthUI : MonoBehaviour
 
         root.SetActive(true);
         FadeTo(1f, null);
+
+        if (waveHudRoot != null)
+        {
+            waveHudRoot.SetActive(false);
+        }
     }
 
     public void Hide()
     {
-        if (root == null)
+        // Already inactive (never shown yet, or already hidden by an earlier Hide() call)
+        // means already hidden — nothing to fade, and starting a coroutine on an inactive
+        // GameObject would just log a warning and no-op anyway.
+        if (root == null || !root.activeInHierarchy)
         {
             return;
         }

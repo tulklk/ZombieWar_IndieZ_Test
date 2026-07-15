@@ -35,6 +35,10 @@ public class LevelResultManager : MonoBehaviour
     [SerializeField] private CanvasGroup loseCanvasGroup;
     [SerializeField] private TMP_Text loseTimeText;
 
+    [Header("Boss (optional)")]
+    [Tooltip("Hidden immediately if the Player dies while a Boss fight is in progress — otherwise its health bar lingers visible behind the Lose panel. Leave empty if this level has no Boss.")]
+    [SerializeField] private BossHealthUI bossHealthUI;
+
     [Header("Show Animation")]
     [SerializeField] private float showFadeDuration = 0.35f;
     [SerializeField] private float showStartScale = 0.9f;
@@ -133,6 +137,7 @@ public class LevelResultManager : MonoBehaviour
         }
 
         isRunning = false;
+        AudioManager.Instance?.StopMusic();
 
         ShowPanelAnimated(winPanel, winCanvasGroup, onIntroComplete: () => StartCoroutine(PlayWinStatsSequence()));
 
@@ -211,6 +216,8 @@ public class LevelResultManager : MonoBehaviour
         }
 
         isRunning = false;
+        AudioManager.Instance?.StopMusic();
+        bossHealthUI?.Hide();
         UpdateTimeText(loseTimeText, elapsedTime);
         ShowPanelAnimated(losePanel, loseCanvasGroup);
 
@@ -310,12 +317,14 @@ public class LevelResultManager : MonoBehaviour
 
     public void RestartLevel()
     {
+        AudioManager.Instance?.PlayMusicFromStart();
         Time.timeScale = 1f;
         SceneManager.LoadScene(levelSceneName);
     }
 
     public void ReturnToMainMenu()
     {
+        AudioManager.Instance?.PlayMusicFromStart();
         Time.timeScale = 1f;
         SceneManager.LoadScene(mainMenuSceneName);
     }
@@ -325,6 +334,7 @@ public class LevelResultManager : MonoBehaviour
     {
         UnlockNextLevel();
 
+        AudioManager.Instance?.PlayMusicFromStart();
         SceneLoadData.OpenLevelSelectOnLoad = true;
         Time.timeScale = 1f;
         SceneManager.LoadScene(mainMenuSceneName);

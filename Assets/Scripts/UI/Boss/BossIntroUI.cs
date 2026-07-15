@@ -81,7 +81,10 @@ public class BossIntroUI : MonoBehaviour
 
     public void Hide()
     {
-        if (root == null || canvasGroup == null)
+        // Already inactive (e.g. the intro reveal ended long ago and combat is already
+        // underway) means already hidden — nothing to fade, and starting a coroutine on an
+        // inactive GameObject would just log a warning and no-op anyway.
+        if (root == null || canvasGroup == null || !root.activeInHierarchy)
         {
             return;
         }

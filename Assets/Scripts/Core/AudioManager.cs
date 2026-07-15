@@ -140,6 +140,31 @@ public class AudioManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 
+    /// <summary>
+    /// Stops music playback directly — unlike SetMusicEnabled, this never touches the
+    /// user's own Music On/Off preference or PlayerPrefs, just the current playback. For
+    /// temporary game-state pauses (e.g. the Win/Lose panel) rather than a settings toggle.
+    /// </summary>
+    public void StopMusic()
+    {
+        if (musicSource != null)
+        {
+            musicSource.Stop();
+        }
+    }
+
+    /// <summary>Restarts music from the very beginning (not an UnPause, which would continue mid-track) — e.g. once the Win/Lose panel's Restart/Menu/Next button is pressed.</summary>
+    public void PlayMusicFromStart()
+    {
+        if (musicSource == null || musicSource.clip == null)
+        {
+            return;
+        }
+
+        musicSource.Stop();
+        musicSource.Play();
+    }
+
     public void ToggleMusic() => SetMusicEnabled(!MusicEnabled);
 
     public void ToggleSfx() => SetSfxEnabled(!SfxEnabled);

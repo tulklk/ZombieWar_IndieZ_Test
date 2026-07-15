@@ -307,10 +307,14 @@ public static class BossFightSetup
         if (levelResultManager != null)
         {
             AddPersistentListenerOnce(fightManager.OnBossDefeatedEvent, levelResultManager, nameof(LevelResultManager.ShowWinPanel));
+
+            SerializedObject serializedLevelResultManager = new SerializedObject(levelResultManager);
+            SetReference(serializedLevelResultManager, "bossHealthUI", bossHealthUI);
+            serializedLevelResultManager.ApplyModifiedProperties();
         }
         else
         {
-            Debug.LogWarning("[BossFightSetup] Could not find 'LevelResultManager' in the active scene — onBossDefeated won't automatically show the Win panel. Wire it by hand or call BossFightManager.HandleBossDefeated() from your own logic.");
+            Debug.LogWarning("[BossFightSetup] Could not find 'LevelResultManager' in the active scene — onBossDefeated won't automatically show the Win panel, and BossHealthPanel won't auto-hide if the Player dies mid-fight. Wire both by hand or call BossFightManager.HandleBossDefeated() from your own logic.");
         }
 
         if (bossRoarClip == null)
@@ -750,6 +754,8 @@ public static class BossFightSetup
             healthUI = Undo.AddComponent<BossHealthUI>(panelObject);
         }
 
+        Transform waveHudTransform = FindImmediateChild(gameCanvasTransform, "WaveHUD");
+
         SerializedObject serializedHealthUI = new SerializedObject(healthUI);
         SetReference(serializedHealthUI, "root", panelObject);
         SetReference(serializedHealthUI, "canvasGroup", canvasGroup);
@@ -757,6 +763,7 @@ public static class BossFightSetup
         SetReference(serializedHealthUI, "bossNameText", nameText);
         SetReference(serializedHealthUI, "healthValueText", valueText);
         SetReference(serializedHealthUI, "bossPhaseText", phaseText);
+        SetReference(serializedHealthUI, "waveHudRoot", waveHudTransform != null ? waveHudTransform.gameObject : null);
 
         SerializedProperty gradientProperty = serializedHealthUI.FindProperty("healthGradient");
 

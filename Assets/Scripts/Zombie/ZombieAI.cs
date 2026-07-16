@@ -65,6 +65,7 @@ public class ZombieAI : MonoBehaviour
     protected ZombieState currentState;
     protected Vector3 spawnPosition;
     protected bool isAiPaused;
+    private bool isDetectionEnabled = true;
 
     /// <summary>Read-only stat accessors — e.g. for BossIntroUI to display Damage/Speed/Attack Range without a second, duplicate data source.</summary>
     public int Damage => damage;
@@ -92,9 +93,12 @@ public class ZombieAI : MonoBehaviour
 
         agent = GetComponent<NavMeshAgent>();
 
+        // GetComponentInChildren (not GetComponent) — some zombie models keep the Animator on
+        // a child visual object rather than this root, and a destroyed/stale reference reads
+        // as null too, so this also self-heals after a model swap replaced the visual child.
         if (animator == null)
         {
-            animator = GetComponent<Animator>();
+            animator = GetComponentInChildren<Animator>(true);
         }
 
         if (audioSource == null)
@@ -210,6 +214,15 @@ public class ZombieAI : MonoBehaviour
         float distanceToPlayer = GetDistanceToPlayer();
         float interval = distanceToPlayer <= nearDistanceThreshold ? nearTickInterval : farTickInterval;
         nextAiTick = Time.time + interval + Random.Range(-0.05f, 0.05f);
+
+        // While detection is disabled, the Idle/Patrol cycle still runs normally (movement,
+        // animation) — only the "notice and go after the Player" transition is skipped. Used
+        // e.g. by a Boss that should visibly wander its arena before the fight officially
+        // starts, without ever being able to prematurely chase/attack.
+        if (!isDetectionEnabled)
+        {
+            return;
+        }
 
         if (target != null && distanceToPlayer <= detectionRange)
         {
@@ -540,6 +553,55 @@ public class ZombieAI : MonoBehaviour
     }
 
     /// <summary>
+    /// Applies a full combat stat set at once — e.g. BigBossPhaseController switching between
+    /// Phase 1/Phase 2 tuning in a single call instead of one setter per stat. chaseWalkSpeed
+    /// doubles as "walk speed" here since that's the field CalculateChaseSpeed ramps up from.
+    /// patrolWalkSpeed is also matched to it — left at its own tiny regular-zombie default
+    /// otherwise, which reads as barely-more-than-idle on a much faster-tuned Boss.
+    /// newDetectionRange is set directly (not just floored) — a Boss should notice the Player
+    /// from well outside melee reach, not only once they're already adjacent; still floored
+    /// against attackRange so it can never end up smaller than the Boss's own melee reach.
+    /// </summary>
+    public void ApplyCombatStats(float walkSpeed, float runSpeed, float acceleration, int damage, float attackRange, float attackCooldown, float newDetectionRange)
+    {
+        chaseWalkSpeed = walkSpeed;
+        patrolWalkSpeed = walkSpeed;
+        this.runSpeed = runSpeed;
+        this.damage = damage;
+        this.attackRange = attackRange;
+        this.attackCooldown = attackCooldown;
+        detectionRange = Mathf.Max(newDetectionRange, attackRange + 2f);
+
+        if (agent != null)
+        {
+            agent.acceleration = acceleration;
+        }
+    }
+
+    /// <summary>
+    /// Cancels whatever this zombie is currently doing (mid-attack windup, mid-chase) and
+    /// holds it in place — e.g. BigBossPhaseController freezing the Boss the instant a Phase
+    /// transition starts. Distinct from SetAIEnabled(false): this also resets currentState
+    /// back to Idle, so a later SetAIEnabled(true) resumes the state machine fresh instead of
+    /// picking back up mid-attack.
+    /// </summary>
+    public void CancelCurrentAttack()
+    {
+        if (currentState == ZombieState.Dead)
+        {
+            return;
+        }
+
+        if (IsAgentUsable)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+        }
+
+        currentState = ZombieState.Idle;
+    }
+
+    /// <summary>
     /// Freezes/resumes this zombie's whole state machine (used by BossFightManager during
     /// the boss intro cutscene) without touching currentState the way SetDead() does — so
     /// resuming picks back up exactly where it left off instead of forcing Idle. While
@@ -567,6 +629,18 @@ public class ZombieAI : MonoBehaviour
         {
             agent.isStopped = false;
         }
+    }
+
+    /// <summary>
+    /// Lets the Idle/Patrol cycle keep running (movement, animation) while suppressing only
+    /// the "notice and go after the Player" transition — e.g. a Boss visibly wandering its
+    /// arena before the fight officially starts, without being able to prematurely chase or
+    /// attack. Independent of SetAIEnabled: that one freezes everything (used for the intro
+    /// cutscene reveal itself), this one only gates detection.
+    /// </summary>
+    public void SetDetectionEnabled(bool isEnabled)
+    {
+        isDetectionEnabled = isEnabled;
     }
 
     public virtual void SetDead()

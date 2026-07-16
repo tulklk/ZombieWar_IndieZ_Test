@@ -28,6 +28,7 @@ public class BossHealthUI : MonoBehaviour
     [SerializeField] private float fadeDuration = 0.35f;
 
     [Header("Boss Phase (optional)")]
+    [Tooltip("Legacy ratio-based auto-detect — only used if SetPhaseLabel is never called. BigBossPhaseController calls SetPhaseLabel explicitly instead, since Phase 2 health can INCREASE at the transition, which would break a pure ratio-based guess.")]
     [SerializeField] private bool enableBossPhases = false;
     [SerializeField, Range(0f, 1f)] private float phase2Threshold = 0.5f;
 
@@ -36,6 +37,7 @@ public class BossHealthUI : MonoBehaviour
     private int lastDisplayedCurrent = -1;
     private int lastDisplayedMax = -1;
     private int currentPhase = 1;
+    private bool hasExplicitPhaseLabel;
     private Coroutine fadeRoutine;
 
     private void Awake()
@@ -85,6 +87,7 @@ public class BossHealthUI : MonoBehaviour
         }
 
         currentPhase = 1;
+        hasExplicitPhaseLabel = false;
         UpdatePhaseText();
 
         if (boundBossHealth != null)
@@ -163,7 +166,7 @@ public class BossHealthUI : MonoBehaviour
             }
         }
 
-        if (enableBossPhases)
+        if (enableBossPhases && !hasExplicitPhaseLabel)
         {
             int newPhase = ((float)current / max) <= phase2Threshold ? 2 : 1;
 
@@ -172,6 +175,29 @@ public class BossHealthUI : MonoBehaviour
                 currentPhase = newPhase;
                 UpdatePhaseText();
             }
+        }
+    }
+
+    /// <summary>
+    /// Explicitly sets the phase label text (e.g. "PHASE 2 - ENRAGED") — called by
+    /// BigBossPhaseController. Overrides the legacy ratio-based auto-detect above for the rest
+    /// of this bind's lifetime, since a Boss's health can INCREASE at its own phase transition
+    /// (a "power surge" refill), which would otherwise misread as still being in Phase 1.
+    /// </summary>
+    public void SetPhaseLabel(string label)
+    {
+        if (bossPhaseText == null)
+        {
+            return;
+        }
+
+        hasExplicitPhaseLabel = true;
+        bool hasLabel = !string.IsNullOrEmpty(label);
+        bossPhaseText.gameObject.SetActive(hasLabel);
+
+        if (hasLabel)
+        {
+            bossPhaseText.text = label;
         }
     }
 

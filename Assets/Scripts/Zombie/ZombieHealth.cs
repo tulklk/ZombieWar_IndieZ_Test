@@ -73,6 +73,9 @@ public class ZombieHealth : MonoBehaviour
     /// <summary>Fires every time TakeDamage changes currentHealth — e.g. BossHealthUI updates its fill bar from this instead of polling every frame.</summary>
     public event System.Action<int, int> HealthChanged;
 
+    /// <summary>True while TakeDamage should no-op entirely — e.g. a Boss mid Phase-transition.</summary>
+    public bool IsInvulnerable { get; private set; }
+
     private void Awake()
     {
         if (zombieData != null)
@@ -84,9 +87,12 @@ public class ZombieHealth : MonoBehaviour
         ActiveCount++;
         countedAsActive = true;
 
+        // GetComponentInChildren (not GetComponent) — some zombie models keep the Animator on
+        // a child visual object rather than this root, and a destroyed/stale reference reads
+        // as null too, so this also self-heals after a model swap replaced the visual child.
         if (animator == null)
         {
-            animator = GetComponent<Animator>();
+            animator = GetComponentInChildren<Animator>(true);
         }
 
         if (zombieAI == null)
@@ -152,7 +158,7 @@ public class ZombieHealth : MonoBehaviour
 
     public void TakeDamage(int damage, Vector3 hitPoint, Vector3 hitNormal)
     {
-        if (isDead)
+        if (isDead || IsInvulnerable)
         {
             return;
         }
@@ -174,22 +180,46 @@ public class ZombieHealth : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Grows maxHealth by a multiplier and scales currentHealth by the same ratio (a Boss at
-    /// 50% stays at 50% of the new, bigger pool — a "power surge" rather than a jarring
-    /// full-refill) — e.g. for BossFightManager's Phase 2 transition. No-ops if already dead
-    /// or given a non-positive multiplier. Fires HealthChanged so UI updates immediately.
-    /// </summary>
-    public void ScaleMaxHealth(float multiplier)
+    /// <summary>Toggles invulnerability directly — e.g. BigBossPhaseController holding the Boss immune for the duration of its Phase transition.</summary>
+    public void SetInvulnerable(bool value)
     {
-        if (isDead || multiplier <= 0f)
+        IsInvulnerable = value;
+    }
+
+    /// <summary>
+    /// Sets MaxHealth to an absolute value — e.g. a Boss's Phase 2 pool. When refill is true,
+    /// CurrentHealth is set to the new MaxHealth (a full "power surge" refill); otherwise
+    /// CurrentHealth is only re-clamped to the new ceiling, never raised. Fires HealthChanged
+    /// so UI updates immediately. No-ops if already dead or given a non-positive value.
+    /// </summary>
+    public void SetMaxHealth(int value, bool refill)
+    {
+        if (isDead || value <= 0)
         {
             return;
         }
 
-        maxHealth = Mathf.Max(Mathf.RoundToInt(maxHealth * multiplier), 1);
-        currentHealth = Mathf.Clamp(Mathf.RoundToInt(currentHealth * multiplier), 1, maxHealth);
+        maxHealth = value;
+        currentHealth = refill ? maxHealth : Mathf.Clamp(currentHealth, 0, maxHealth);
 
+        HealthChanged?.Invoke(currentHealth, maxHealth);
+        UpdateHealthBar();
+    }
+
+    /// <summary>
+    /// Sets CurrentHealth directly, clamped to [0, MaxHealth] — e.g. BigBossPhaseController
+    /// keeping a Boss's health pinned above 0 while it intercepts a lethal hit during Phase 1.
+    /// Fires HealthChanged; deliberately does NOT call Die() even at 0 — only TakeDamage's own
+    /// lethal check does that, so setting this to 0 alone never kills the zombie.
+    /// </summary>
+    public void SetCurrentHealth(int value)
+    {
+        if (isDead)
+        {
+            return;
+        }
+
+        currentHealth = Mathf.Clamp(value, 0, maxHealth);
         HealthChanged?.Invoke(currentHealth, maxHealth);
         UpdateHealthBar();
     }

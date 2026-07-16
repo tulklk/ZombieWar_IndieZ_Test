@@ -31,6 +31,8 @@ public class BossFightManager : MonoBehaviour
     [SerializeField] private Animator bossAnimator;
     [SerializeField] private Renderer[] bossRenderers;
     [SerializeField] private Transform bossCameraTarget;
+    [Tooltip("Optional — a Boss with a 2-phase kit (BigZombieBoss). Initialized right here in Awake (applies Phase 1 stats/health) so the Intro panel already reads correct, scale-floored values; the phase machine itself stays paused along with bossAI until BeginBossFight().")]
+    [SerializeField] private BigBossPhaseController phaseController;
 
     [Header("Player")]
     [SerializeField] private Transform playerTransform;
@@ -66,19 +68,6 @@ public class BossFightManager : MonoBehaviour
     [Tooltip("Closed the moment the intro starts, opened when the boss dies. Leave empty if this arena has no barrier.")]
     [SerializeField] private WaveBarrier bossArenaBarrier;
 
-    [Header("Phase 2 (boss gets stronger once health drops to/below the threshold)")]
-    [SerializeField] private bool enablePhaseTwo = true;
-    [Tooltip("Fraction of MaxHealth (at the moment it's crossed) that triggers Phase 2 — matches BossHealthUI's own phase2Threshold by default so the \"PHASE 2\" label and the actual stat boost happen together.")]
-    [SerializeField, Range(0.05f, 0.95f)] private float phase2HealthThreshold = 0.5f;
-    [SerializeField] private float phase2DamageMultiplier = 1.5f;
-    [SerializeField] private float phase2AttackRangeMultiplier = 1.3f;
-    [SerializeField] private float phase2SpeedMultiplier = 1.4f;
-    [Tooltip("Also grows MaxHealth by this multiplier (currentHealth scales by the same ratio, so a Boss at exactly the threshold stays at that same percentage of the new, bigger pool) — a \"power surge\" rather than a jarring full-refill.")]
-    [SerializeField] private float phase2MaxHealthMultiplier = 1.4f;
-    [Tooltip("Played (with the same Roar trigger/camera shake as the intro) when Phase 2 starts. Falls back to bossRoarClip if left empty.")]
-    [SerializeField] private AudioClip phase2RoarClip;
-    [SerializeField] private UnityEvent onPhaseTwoStarted;
-
     [Header("Completion")]
     [SerializeField] private UnityEvent onBossFightStarted;
     [SerializeField] private UnityEvent onBossDefeated;
@@ -88,7 +77,6 @@ public class BossFightManager : MonoBehaviour
 
     private bool hasStarted;
     private bool hasConfiguredCamera;
-    private bool hasEnteredPhaseTwo;
     private Coroutine sequenceRoutine;
     private readonly List<GameObject> hudElementsHiddenForIntro = new List<GameObject>();
 
@@ -109,11 +97,23 @@ public class BossFightManager : MonoBehaviour
             }
         }
 
-        // The boss must not chase/attack before the fight officially begins, however long
-        // the Player lingers near it before ever touching BossIntroTrigger.
+        // Self-heals a stale reference (e.g. left pointing at a destroyed model's Animator
+        // after a model swap replaced the Boss's visual child) instead of silently never
+        // playing the Roar animation/SFX again for the rest of the scene's lifetime.
+        if (bossAnimator == null && bossObject != null)
+        {
+            bossAnimator = bossObject.GetComponentInChildren<Animator>(true);
+        }
+
+        // The boss must not chase/attack before the fight officially begins, however long the
+        // Player lingers near it before ever touching BossIntroTrigger — but it can still
+        // freely Idle/Patrol (wander its arena) in the meantime, since only detection (not
+        // movement) is disabled here. IntroSequenceRoutine fully freezes it again for the
+        // cutscene reveal itself; BeginBossFight re-enables detection once the fight starts.
         if (bossAI != null)
         {
-            bossAI.SetAIEnabled(false);
+            bossAI.SetAIEnabled(true);
+            bossAI.SetDetectionEnabled(false);
         }
 
         if (bossHealthUI != null && bossHealth != null)
@@ -124,8 +124,13 @@ public class BossFightManager : MonoBehaviour
         if (bossHealth != null)
         {
             bossHealth.Died += HandleBossHealthDied;
-            bossHealth.HealthChanged += HandleBossHealthChangedForPhaseTwo;
         }
+
+        // Applies Phase 1 stats/health (including the scale-floored attack range — see
+        // BigBossPhaseController.ApplyStatsToAI) right away, so the Intro panel below already
+        // reads correct values. The phase machine's own AI stays paused (via bossAI.SetAIEnabled
+        // above) until BeginBossFight() actually unlocks it.
+        phaseController?.InitializeBoss();
     }
 
     private void OnDestroy()
@@ -133,67 +138,7 @@ public class BossFightManager : MonoBehaviour
         if (bossHealth != null)
         {
             bossHealth.Died -= HandleBossHealthDied;
-            bossHealth.HealthChanged -= HandleBossHealthChangedForPhaseTwo;
         }
-    }
-
-    /// <summary>
-    /// BigZombieData's attackRange/detectionRange were tuned for BigZombie_AI.prefab's own
-    /// authored scale (6,6,6 — also what the Wave-3 mini-boss uses) — this Boss is often
-    /// scaled up further by hand for a more imposing encounter, so its reach needs to grow
-    /// to match or melee attacks silently miss despite looking adjacent on screen. Runs in
-    /// Start() (never Awake()) specifically because Unity doesn't guarantee Awake() order
-    /// across different GameObjects — running here guarantees ZombieAI.Awake()'s own
-    /// ApplyZombieData call has already applied the tuned base values before this scales
-    /// them, instead of racing it and sometimes getting silently overwritten right back.
-    /// A plain scale-ratio wasn't a large enough floor on its own: it scales whatever
-    /// attackRange happened to already be, which isn't necessarily related to how physically
-    /// big this Boss's own CapsuleCollider now is at its current scale. So the required range
-    /// is also floored against the Boss's OWN measured collision radius (world-space, via
-    /// lossyScale) plus a melee reach margin (the Player's own radius plus some swing reach)
-    /// — guaranteeing a Player standing right at the edge of the Boss's visible/physical body
-    /// always reads as "in range," regardless of whatever attackRange was originally tuned to.
-    /// Reads everything live off the current instance, so re-scaling the Boss (or swapping
-    /// its Collider) and re-testing picks up the change automatically.
-    /// </summary>
-    private const float ReferencePrefabScale = 6f;
-    private const float MeleeReachMargin = 2.5f;
-    private const float DetectionOverAttackMargin = 2f;
-
-    private void Start()
-    {
-        if (bossAI == null || bossObject == null)
-        {
-            return;
-        }
-
-        float scaleMultiplier = Mathf.Max(bossObject.transform.localScale.x / ReferencePrefabScale, 1f);
-        float scaledAttackRange = bossAI.AttackRange * scaleMultiplier;
-        float scaledDetectionRange = bossAI.DetectionRange * scaleMultiplier;
-
-        float colliderFloor = GetEffectiveColliderRadius(bossObject) + MeleeReachMargin;
-
-        float finalAttackRange = Mathf.Max(scaledAttackRange, colliderFloor);
-        float finalDetectionRange = Mathf.Max(scaledDetectionRange, finalAttackRange + DetectionOverAttackMargin);
-
-        bossAI.SetAttackAndDetectionRange(finalAttackRange, finalDetectionRange);
-
-        Log($"Scaled attack/detection range for this Boss's size — attackRange={finalAttackRange:0.0} (collider floor {colliderFloor:0.0}), detectionRange={finalDetectionRange:0.0}.");
-    }
-
-    /// <summary>World-space radius of the Boss's own CapsuleCollider (local radius × the larger of its X/Z lossyScale) — 0 if it has none.</summary>
-    private static float GetEffectiveColliderRadius(GameObject boss)
-    {
-        CapsuleCollider capsule = boss.GetComponent<CapsuleCollider>();
-
-        if (capsule == null)
-        {
-            return 0f;
-        }
-
-        Vector3 lossyScale = boss.transform.lossyScale;
-        float horizontalScale = Mathf.Max(Mathf.Abs(lossyScale.x), Mathf.Abs(lossyScale.z));
-        return capsule.radius * horizontalScale;
     }
 
     /// <summary>Wired to BossIntroTrigger.</summary>
@@ -311,16 +256,21 @@ public class BossFightManager : MonoBehaviour
             return;
         }
 
-        if (bossRenderers == null || bossRenderers.Length == 0)
+        // Prefer the Boss's own Collider over Renderer bounds — a SkinnedMeshRenderer's bounds
+        // are recomputed live from the CURRENTLY animated bone poses, and a bad/mismatched-scale
+        // animation import can balloon them to hundreds of units despite the model looking fine
+        // on screen. Collider.bounds comes purely from its own fixed shape/Transform instead.
+        Collider bossCollider = bossObject != null ? bossObject.GetComponent<Collider>() : null;
+
+        if (bossCollider == null && (bossRenderers == null || bossRenderers.Length == 0))
         {
-            Log("bossRenderers is empty — camera will fall back to its default framing instead of sizing to this boss.", true);
+            Log("Neither a Boss Collider nor bossRenderers is available — camera will fall back to its default framing instead of sizing to this boss.", true);
         }
 
-        bossCameraController.ConfigureCameraForBoss(bossRenderers);
+        bossCameraController.ConfigureCameraForBoss(bossRenderers, bossCollider);
     }
 
-    /// <summary>Shared by the intro reveal and the Phase 2 transition — pass a clip override for Phase 2's own roar SFX, or leave null to use bossRoarClip.</summary>
-    private void PlayRoarAnimationAndSfx(AudioClip clipOverride = null)
+    private void PlayRoarAnimationAndSfx()
     {
         if (bossAnimator != null && !string.IsNullOrEmpty(roarTriggerName))
         {
@@ -345,18 +295,16 @@ public class BossFightManager : MonoBehaviour
             }
         }
 
-        AudioClip clipToPlay = clipOverride != null ? clipOverride : bossRoarClip;
-
-        if (clipToPlay != null && bossAudioSource != null)
+        if (bossRoarClip != null && bossAudioSource != null)
         {
             bool sfxEnabled = AudioManager.Instance == null || AudioManager.Instance.SfxEnabled;
 
             if (sfxEnabled)
             {
-                bossAudioSource.PlayOneShot(clipToPlay);
+                bossAudioSource.PlayOneShot(bossRoarClip);
             }
         }
-        else if (clipToPlay == null)
+        else if (bossRoarClip == null)
         {
             Log("No roar clip assigned — continuing silently.", true);
         }
@@ -418,6 +366,7 @@ public class BossFightManager : MonoBehaviour
             }
 
             bossAI.SetAIEnabled(true);
+            bossAI.SetDetectionEnabled(true);
         }
 
         CurrentState = BossFightState.Fighting;
@@ -507,52 +456,6 @@ public class BossFightManager : MonoBehaviour
     private void HandleBossHealthDied(ZombieHealth deadBossHealth)
     {
         HandleBossDefeated();
-    }
-
-    /// <summary>
-    /// Watches every HealthChanged tick (not a per-frame poll) for the moment the Boss first
-    /// drops to/below phase2HealthThreshold, only while the fight is actually live — never
-    /// mid-intro, never after death. Guards against the same fatal-hit edge case Died itself
-    /// guards against: a single hit can carry currentHealth from well above the threshold
-    /// straight through to 0, and HealthChanged fires (earlier in ZombieHealth.TakeDamage)
-    /// before the Died check even runs — so Phase 2 must not kick in on a Boss that's
-    /// simultaneously dying in that same hit.
-    /// </summary>
-    private void HandleBossHealthChangedForPhaseTwo(int current, int max)
-    {
-        if (!enablePhaseTwo || hasEnteredPhaseTwo || CurrentState != BossFightState.Fighting)
-        {
-            return;
-        }
-
-        if (current <= 0 || max <= 0)
-        {
-            return;
-        }
-
-        if ((float)current / max <= phase2HealthThreshold)
-        {
-            EnterPhaseTwo();
-        }
-    }
-
-    private void EnterPhaseTwo()
-    {
-        hasEnteredPhaseTwo = true;
-        Log("Boss entering Phase 2 — stronger, faster, longer reach, more health.");
-
-        if (bossAI != null)
-        {
-            bossAI.SetDamage(Mathf.RoundToInt(bossAI.Damage * phase2DamageMultiplier));
-            bossAI.SetRunSpeed(bossAI.RunSpeed * phase2SpeedMultiplier);
-            bossAI.SetAttackAndDetectionRange(bossAI.AttackRange * phase2AttackRangeMultiplier, bossAI.DetectionRange * phase2AttackRangeMultiplier);
-        }
-
-        bossHealth?.ScaleMaxHealth(phase2MaxHealthMultiplier);
-
-        PlayRoarAnimationAndSfx(phase2RoarClip);
-
-        onPhaseTwoStarted?.Invoke();
     }
 
     /// <summary>Also safe to call directly/manually (e.g. from a debug button) — guarded so it only ever runs once.</summary>

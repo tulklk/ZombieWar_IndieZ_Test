@@ -25,6 +25,7 @@ public class LevelResultManager : MonoBehaviour
     [SerializeField] private TMP_Text winTimeText;
     [SerializeField] private TMP_Text killCountText;
     [SerializeField] private TMP_Text scoreText;
+    [SerializeField] private AudioClip winSfxClip;
     [Tooltip("How long each of Kills/Time/Score takes to count up from 0 to its final value — they count up one after another, not all at once.")]
     [SerializeField] private float countUpDuration = 1f;
     [Tooltip("Pause between each stat finishing its count-up and the next one starting.")]
@@ -34,6 +35,7 @@ public class LevelResultManager : MonoBehaviour
     [SerializeField] private GameObject losePanel;
     [SerializeField] private CanvasGroup loseCanvasGroup;
     [SerializeField] private TMP_Text loseTimeText;
+    [SerializeField] private AudioClip loseSfxClip;
 
     [Header("Boss (optional)")]
     [Tooltip("Hidden immediately if the Player dies while a Boss fight is in progress — otherwise its health bar lingers visible behind the Lose panel. Leave empty if this level has no Boss.")]
@@ -54,6 +56,9 @@ public class LevelResultManager : MonoBehaviour
     private Coroutine showRoutine;
     private int totalKills;
     private int totalScore;
+
+    /// <summary>False once Win/Lose has already been shown — e.g. PauseManager uses this to refuse opening the Pause panel over an already-finished level.</summary>
+    public bool IsRunning => isRunning;
 
     private void Awake()
     {
@@ -138,6 +143,7 @@ public class LevelResultManager : MonoBehaviour
 
         isRunning = false;
         AudioManager.Instance?.StopMusic();
+        AudioManager.Instance?.PlaySfx(winSfxClip);
 
         ShowPanelAnimated(winPanel, winCanvasGroup, onIntroComplete: () => StartCoroutine(PlayWinStatsSequence()));
 
@@ -217,6 +223,7 @@ public class LevelResultManager : MonoBehaviour
 
         isRunning = false;
         AudioManager.Instance?.StopMusic();
+        AudioManager.Instance?.PlaySfx(loseSfxClip);
         bossHealthUI?.Hide();
         UpdateTimeText(loseTimeText, elapsedTime);
         ShowPanelAnimated(losePanel, loseCanvasGroup);

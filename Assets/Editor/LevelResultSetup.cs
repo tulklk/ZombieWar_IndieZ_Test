@@ -22,6 +22,8 @@ using Object = UnityEngine.Object;
 public static class LevelResultSetup
 {
     private const string UndoLabel = "Setup Level Result";
+    private const string WinSfxPath = "Assets/Audio/SFX/Panel/WinSFX.mp3";
+    private const string LoseSfxPath = "Assets/Audio/SFX/Panel/LoseSFX.mp3";
 
     [MenuItem("Tools/Zombie War/Setup Level Result (Win Lose)")]
     public static void Setup()
@@ -121,6 +123,11 @@ public static class LevelResultSetup
         SetReferenceIfEmpty(serializedManager, "scoreText", FindChildTmpText(winPanel, "ScoreText"));
         SetReference(serializedManager, "losePanel", losePanel);
         SetReference(serializedManager, "loseCanvasGroup", loseCanvasGroup);
+
+        // Only fills these in the first time (while still unset) — a deliberately cleared or
+        // hand-swapped SFX clip on a later run is left exactly as the user set it.
+        SetReferenceIfEmpty(serializedManager, "winSfxClip", AssetDatabase.LoadAssetAtPath<AudioClip>(WinSfxPath));
+        SetReferenceIfEmpty(serializedManager, "loseSfxClip", AssetDatabase.LoadAssetAtPath<AudioClip>(LoseSfxPath));
 
         // Same reasoning as PanelIntroAnimator's pacing fields above — explicitly requested
         // ("run slower"), safe to always reapply.

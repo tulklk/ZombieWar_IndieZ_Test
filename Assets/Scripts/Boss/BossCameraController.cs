@@ -71,15 +71,26 @@ public class BossCameraController : MonoBehaviour
     private bool hasBossBounds;
 
     /// <summary>Combined bounds of every renderer passed in — Bounds.Encapsulate needs one starting bounds, so the first renderer seeds it.</summary>
-    public Bounds CalculateBossBounds(Renderer[] renderers)
+    public Bounds CalculateBossBounds(Renderer[] renderers) => CalculateBossBounds(renderers, out _);
+
+    /// <summary>
+    /// Same as above, but also reports whether any renderer in the array was actually usable
+    /// (non-null). A stale array — e.g. left over from a destroyed model after a prefab swap —
+    /// can have Length &gt; 0 while every element is a dangling null reference; without this,
+    /// the caller would otherwise treat the resulting default Bounds (center at world origin)
+    /// as a genuine measurement and reposition BossCameraTarget to world (0,0,0) instead of
+    /// leaving it alone.
+    /// </summary>
+    public Bounds CalculateBossBounds(Renderer[] renderers, out bool foundAnyRenderer)
     {
+        foundAnyRenderer = false;
+
         if (renderers == null || renderers.Length == 0)
         {
             return default;
         }
 
         Bounds combined = default;
-        bool started = false;
 
         for (int i = 0; i < renderers.Length; i++)
         {
@@ -88,10 +99,10 @@ public class BossCameraController : MonoBehaviour
                 continue;
             }
 
-            if (!started)
+            if (!foundAnyRenderer)
             {
                 combined = renderers[i].bounds;
-                started = true;
+                foundAnyRenderer = true;
             }
             else
             {
@@ -104,20 +115,35 @@ public class BossCameraController : MonoBehaviour
 
     /// <summary>
     /// Called once (BossFightManager does this right when a boss fight is about to start —
-    /// never per-frame). Measures bossRenderers, repositions BossCameraTarget to the boss's
-    /// real center, and configures both CM_BossIntro (static one-time hero shot) and
+    /// never per-frame). Measures the boss's size, repositions BossCameraTarget to its real
+    /// center, and configures both CM_BossIntro (static one-time hero shot) and
     /// CM_BossCombat's CinemachineTransposer (Player-anchored, Boss-sized distance/FOV) to
     /// fit THIS boss's size — no hard-coded Follow Offset that would only look right for one
     /// specific boss model.
+    ///
+    /// referenceCollider (e.g. the Boss's own CapsuleCollider) is used ahead of Renderer bounds
+    /// whenever assigned — a SkinnedMeshRenderer's live bounds are recomputed from the CURRENT
+    /// animated bone poses, and a bad/mismatched-scale animation import (seen with some
+    /// third-party Creature Pack-style clips, where a bone's baked position curve is off by two
+    /// orders of magnitude) can make the mesh's bounds balloon to hundreds of units despite the
+    /// character looking fine on screen — Collider.bounds is derived purely from the Collider's
+    /// own fixed shape/Transform and is immune to that.
     /// </summary>
-    public void ConfigureCameraForBoss(Renderer[] renderers)
+    public void ConfigureCameraForBoss(Renderer[] renderers, Collider referenceCollider = null)
     {
-        bossBounds = CalculateBossBounds(renderers);
-        hasBossBounds = renderers != null && renderers.Length > 0;
+        if (referenceCollider != null)
+        {
+            bossBounds = referenceCollider.bounds;
+            hasBossBounds = true;
+        }
+        else
+        {
+            bossBounds = CalculateBossBounds(renderers, out hasBossBounds);
+        }
 
         if (!hasBossBounds)
         {
-            Debug.LogWarning("[BossCameraController] No boss renderers assigned — falling back to default camera framing (baseCameraDistance/baseCameraHeight).");
+            Debug.LogWarning("[BossCameraController] No boss renderers/collider assigned — falling back to default camera framing (baseCameraDistance/baseCameraHeight).");
         }
 
         float bossHeight = hasBossBounds ? Mathf.Max(bossBounds.size.y, 0.5f) : baseCameraHeight * 0.15f;
